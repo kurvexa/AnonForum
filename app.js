@@ -4,11 +4,24 @@
 const SUPABASE_URL = "https://lqisypgwjzvtxslmsuwc.supabase.co";
 const SUPABASE_KEY = "sb_publishable_t0odKZzr5g98bTl1O5yuMw_R86mrL7W";
 
-// Create client (DO NOT name it supabase)
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // =======================
-// 👤 Anonymous username
+// 👤 User ID (persistent)
+// =======================
+function getUserId() {
+  let id = localStorage.getItem("userId");
+
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem("userId", id);
+  }
+
+  return id;
+}
+
+// =======================
+// 👤 Anonymous name
 // =======================
 function getAnonName() {
   let name = localStorage.getItem("anonName");
@@ -22,42 +35,70 @@ function getAnonName() {
 }
 
 // =======================
-// ⏱️ Time ago formatter
+// ⏱️ Time ago
 // =======================
 function timeAgo(timestamp) {
-  if (!timestamp) return "just now";
-
   const now = new Date();
   const past = new Date(timestamp);
-
-  if (isNaN(past.getTime())) return "just now";
 
   const seconds = Math.floor((now - past) / 1000);
 
   if (seconds < 5) return "just now";
-  if (seconds < 60) return `${seconds} seconds ago`;
+  if (seconds < 60) return `${seconds} sec ago`;
 
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} minute${minutes !== 1 ? "s" : ""} ago`;
+  if (minutes < 60) return `${minutes} min ago`;
 
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hour${hours !== 1 ? "s" : ""} ago`;
+  if (hours < 24) return `${hours} hr ago`;
 
   const days = Math.floor(hours / 24);
   return `${days} day${days !== 1 ? "s" : ""} ago`;
 }
 
 // =======================
-// 🔄 Update timestamps live
+// 🔼 Upvote (with protection)
 // =======================
-function updateTimestamps() {
-  document.querySelectorAll(".timestamp").forEach(el => {
-    const time = el.getAttribute("data-time");
-    el.innerText = timeAgo(time);
+async function upvote(postId) {
+  const userId = getUserId();
+
+  // Check if already voted
+  const { data: existing } = await db
+    .from("votes")
+    .select("*")
+    .eq("post_id", postId)
+    .eq("user_id", userId)
+    .single();
+
+  if (existing) return; // already voted
+
+  // Insert vote
+  await db.from("votes").insert({
+    post_id: postId,
+    user_id: userId
   });
+
+  // Increment upvotes
+  const { data: post } = await db
+    .from("posts")
+    .select("upvotes")
+    .eq("id", postId)
+    .single();
+
+  await db
+    .from("posts")
+    .update({ upvotes: (post.upvotes || 0) + 1 })
+    .eq("id", postId);
 }
 
-setInterval(updateTimestamps, 30000);
+// =======================
+// 💬 Quote system
+// =======================
+function quotePost(id) {
+  const input = document.getElementById("postInput");
+  input.value += `>>${id}\n`;
+  input.focus();
+}
 
 // =======================
 // ➕ Add post
@@ -69,7 +110,8 @@ async function addPost() {
   await db.from("posts").insert({
     text: input.value,
     author: getAnonName(),
-    parent_id: null
+    parent_id: null,
+    upvotes: 0
   });
 
   input.value = "";
@@ -85,28 +127,13 @@ async function addReply(postId) {
   await db.from("posts").insert({
     text: input.value,
     author: getAnonName(),
-    parent_id: postId
+    parent_id: postId,
+    upvotes: 0
   });
 }
 
 // =======================
-// 🔁 Toggle reply box
-// =======================
-function toggleReplyBox(id) {
-  const el = document.getElementById("replyBox-" + id);
-  el.style.display = el.style.display === "none" ? "block" : "none";
-}
-
-// =======================
-// 📂 Toggle thread
-// =======================
-function toggleThread(id) {
-  const el = document.getElementById("replies-" + id);
-  el.style.display = el.style.display === "none" ? "block" : "none";
-}
-
-// =======================
-// 🌳 Build nested structure
+// 🌳 Build tree
 // =======================
 function buildTree(posts) {
   const map = {};
@@ -129,18 +156,20 @@ function buildTree(posts) {
 }
 
 // =======================
-// 🖼️ Render posts
+// 🖼️ Render
 // =======================
 function renderPosts(posts) {
   const container = document.getElementById("posts");
   container.innerHTML = "";
 
-  function render(post, parent, depth = 0) {
+  function render(post, parent) {
     const div = document.createElement("div");
-    div.className = depth === 0 ? "post" : "reply";
+    div.className = post.parent_id ? "reply" : "post";
 
-    const repliesDiv = document.createElement("div");
-    repliesDiv.id = "replies-" + post.id;
+    const quotedText = post.text.replace(
+      />>(\d+)/g,
+      `<span class="quote">>>$1</span>`
+    );
 
     div.innerHTML = `
       <div class="meta">
@@ -148,21 +177,26 @@ function renderPosts(posts) {
         <span class="timestamp" data-time="${post.created_at}"></span>
       </div>
 
-      <p>${post.text}</p>
+      <p>${quotedText}</p>
 
-      <button onclick="toggleReplyBox(${post.id})">Reply</button>
-      <button onclick="toggleThread(${post.id})">Collapse</button>
+      <div>
+        🔼 <span>${post.upvotes || 0}</span>
+        <button onclick="upvote(${post.id})">Upvote</button>
+        <button onclick="quotePost(${post.id})">Quote</button>
+        <button onclick="toggleReplyBox(${post.id})">Reply</button>
+      </div>
 
       <div id="replyBox-${post.id}" style="display:none;">
-        <textarea id="replyInput-${post.id}" placeholder="Reply..."></textarea><br>
+        <textarea id="replyInput-${post.id}"></textarea>
         <button onclick="addReply(${post.id})">Submit</button>
       </div>
+
+      <div id="replies-${post.id}"></div>
     `;
 
-    div.appendChild(repliesDiv);
     parent.appendChild(div);
 
-    post.replies.forEach(r => render(r, repliesDiv, depth + 1));
+    post.replies.forEach(r => render(r, div));
   }
 
   const tree = buildTree(posts);
@@ -172,34 +206,44 @@ function renderPosts(posts) {
 }
 
 // =======================
-// 🚀 Load + realtime sync
+// ⏱️ Update timestamps
+// =======================
+function updateTimestamps() {
+  document.querySelectorAll(".timestamp").forEach(el => {
+    el.innerText = timeAgo(el.dataset.time);
+  });
+}
+
+setInterval(updateTimestamps, 30000);
+
+// =======================
+// 🔄 Toggle reply box
+// =======================
+function toggleReplyBox(id) {
+  const el = document.getElementById("replyBox-" + id);
+  el.style.display = el.style.display === "none" ? "block" : "none";
+}
+
+// =======================
+// 🚀 Load + realtime
 // =======================
 async function init() {
-  const { data, error } = await db
+  const { data } = await db
     .from("posts")
-    .select("id, text, author, parent_id, created_at")
+    .select("*")
     .order("created_at", { ascending: true });
-
-  if (error) {
-    console.error(error);
-    return;
-  }
 
   renderPosts(data);
 
-  db.channel("posts-channel")
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "posts" },
-      async () => {
-        const { data } = await db
-          .from("posts")
-          .select("id, text, author, parent_id, created_at")
-          .order("created_at", { ascending: true });
+  db.channel("forum")
+    .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, async () => {
+      const { data } = await db
+        .from("posts")
+        .select("*")
+        .order("created_at", { ascending: true });
 
-        renderPosts(data);
-      }
-    )
+      renderPosts(data);
+    })
     .subscribe();
 }
 
