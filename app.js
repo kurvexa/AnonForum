@@ -9,6 +9,7 @@ const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 // =======================
 // 🧠 STATE
 // =======================
+const BOARDS = ["general", "tech", "gaming", "random"];
 let currentBoard = "general";
 
 // =======================
@@ -33,15 +34,17 @@ function getAnonName() {
 }
 
 // =======================
-// ⏱️ TIME (FIXED)
+// ⏱️ TIME FIXED
 // =======================
 function timeAgo(ts) {
   if (!ts) return "just now";
 
   const past = new Date(ts);
-  if (isNaN(past)) return "just now";
+  const now = new Date();
 
-  const diff = Math.floor((new Date() - past) / 1000);
+  if (isNaN(past.getTime())) return "just now";
+
+  const diff = Math.floor((now - past) / 1000);
 
   if (diff < 0) return "just now";
   if (diff < 60) return `${diff}s ago`;
@@ -51,7 +54,7 @@ function timeAgo(ts) {
 }
 
 // =======================
-// 🔼 UPVOTE (SAFE)
+// 🔼 UPVOTE
 // =======================
 async function upvote(postId) {
   const userId = getUserId();
@@ -61,8 +64,7 @@ async function upvote(postId) {
     user_id: userId
   });
 
-  if (error) {
-    if (error.code === "23505") return;
+  if (error && error.code !== "23505") {
     console.error(error);
     return;
   }
@@ -122,7 +124,7 @@ async function addPost() {
   }
 
   input.value = "";
-  setTimeout(loadPosts, 150);
+  loadPosts();
 }
 
 // =======================
@@ -149,7 +151,7 @@ async function addReply(parentId) {
 }
 
 // =======================
-// 🌳 BUILD TREE (SAFE)
+// 🌳 BUILD TREE
 // =======================
 function buildTree(posts = []) {
   const map = {};
@@ -194,7 +196,7 @@ function renderPosts(posts) {
 
       <p>${formatted}</p>
 
-      ${post.upvotes || 0}
+      ❤️ ${post.upvotes || 0}
       <button onclick="upvote(${post.id})">Upvote</button>
       <button onclick="quotePost(${post.id})">Quote</button>
       <button onclick="toggleReplyBox(${post.id})">Reply</button>
@@ -227,19 +229,22 @@ function toggleReplyBox(id) {
 // 🔀 SWITCH BOARD
 // =======================
 function switchBoard(board) {
+  if (!BOARDS.includes(board)) board = "general";
+
   currentBoard = board;
+  document.getElementById("boardTitle").innerText =
+    board.charAt(0).toUpperCase() + board.slice(1);
+
   loadPosts();
 }
 
 // =======================
-// 📥 LOAD POSTS (FIXED)
+// 📥 LOAD POSTS
 // =======================
 async function loadPosts() {
-  document.getElementById("boardTitle").innerText = currentBoard;
-
   const { data, error } = await db
     .from("posts")
-    .select("*")
+    .select("id, text, author, created_at, parent_id, upvotes, board")
     .eq("board", currentBoard)
     .order("created_at", { ascending: false });
 
@@ -251,6 +256,24 @@ async function loadPosts() {
   renderPosts(data || []);
 }
 
+// =======================
+// 🔔 REAL-TIME (NO REFRESH)
+// =======================
+function setupRealtime() {
+  db.channel("posts-channel")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "posts" },
+      () => loadPosts()
+    )
+    .subscribe();
+}
+
+// =======================
+// 🚀 INIT
+// =======================
+setupRealtime();
+loadPosts();
 // =======================
 // 🚀 INIT
 // =======================
