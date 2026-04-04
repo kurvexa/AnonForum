@@ -1,19 +1,18 @@
-
 // =======================
-// 🔧 Supabase Setup
+// 🔧 SUPABASE SETUP
 // =======================
 const SUPABASE_URL = "https://lqisypgwjzvtxslmsuwc.supabase.co";
-const SUPABASE_KEY = "sb_publishable_t0odKZzr5g98bTl1O5yuMw_R86mrL7W";
+const SUPABASE_KEY = "YOUR_PUBLISHABLE_KEY";
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // =======================
-// 🧠 State
+// 🧠 STATE
 // =======================
 let currentBoard = "general";
 
 // =======================
-// 👤 User
+// 👤 USER
 // =======================
 function getUserId() {
   let id = localStorage.getItem("userId");
@@ -34,7 +33,7 @@ function getAnonName() {
 }
 
 // =======================
-// ⏱️ Time (FIXED)
+// ⏱️ TIME (FIXED)
 // =======================
 function timeAgo(ts) {
   if (!ts) return "just now";
@@ -52,7 +51,7 @@ function timeAgo(ts) {
 }
 
 // =======================
-// 🔼 Upvote (ANTI-SPAM)
+// 🔼 UPVOTE (SAFE)
 // =======================
 async function upvote(postId) {
   const userId = getUserId();
@@ -63,7 +62,7 @@ async function upvote(postId) {
   });
 
   if (error) {
-    if (error.code === "23505") return; // already voted
+    if (error.code === "23505") return;
     console.error(error);
     return;
   }
@@ -74,7 +73,7 @@ async function upvote(postId) {
 }
 
 // =======================
-// 💬 Quote
+// 💬 QUOTE
 // =======================
 function quotePost(postId) {
   const posts = window.__postsCache || [];
@@ -95,7 +94,7 @@ function quotePost(postId) {
 
   const input = document.getElementById("postInput");
 
-  const quoted = post.text
+  const quoted = (post.text || "")
     .split("\n")
     .map(line => "> " + line)
     .join("\n");
@@ -105,42 +104,52 @@ function quotePost(postId) {
 }
 
 // =======================
-// ➕ Add Post
+// ➕ ADD POST
 // =======================
 async function addPost() {
   const input = document.getElementById("postInput");
   if (!input.value.trim()) return;
 
-  await db.from("posts").insert({
+  const { error } = await db.from("posts").insert({
     text: input.value,
     author: getAnonName(),
     board: currentBoard
   });
 
+  if (error) {
+    console.error(error);
+    return;
+  }
+
   input.value = "";
-  loadPosts();
+  setTimeout(loadPosts, 150);
 }
 
 // =======================
-// 💬 Add Reply
+// 💬 ADD REPLY
 // =======================
 async function addReply(parentId) {
   const input = document.getElementById("replyInput-" + parentId);
   if (!input.value.trim()) return;
 
-  await db.from("posts").insert({
+  const { error } = await db.from("posts").insert({
     text: input.value,
     author: getAnonName(),
     parent_id: parentId,
     board: currentBoard
   });
 
+  if (error) {
+    console.error(error);
+    return;
+  }
+
   input.value = "";
   loadPosts();
 }
 
 // =======================
-// 🌳 Build Tree (SAFE)
+// 🌳 BUILD TREE (SAFE)
 // =======================
 function buildTree(posts = []) {
   const map = {};
@@ -163,7 +172,7 @@ function buildTree(posts = []) {
 }
 
 // =======================
-// 🖼️ Render
+// 🖼️ RENDER
 // =======================
 function renderPosts(posts) {
   window.__postsCache = posts || [];
@@ -185,7 +194,7 @@ function renderPosts(posts) {
 
       <p>${formatted}</p>
 
-      ${post.upvotes || 0}
+      ❤️ ${post.upvotes || 0}
       <button onclick="upvote(${post.id})">Upvote</button>
       <button onclick="quotePost(${post.id})">Quote</button>
       <button onclick="toggleReplyBox(${post.id})">Reply</button>
@@ -207,7 +216,7 @@ function renderPosts(posts) {
 }
 
 // =======================
-// 🔽 Toggle Reply
+// 🔽 TOGGLE REPLY BOX
 // =======================
 function toggleReplyBox(id) {
   const el = document.getElementById("replyBox-" + id);
@@ -215,7 +224,7 @@ function toggleReplyBox(id) {
 }
 
 // =======================
-// 🔀 Switch Board
+// 🔀 SWITCH BOARD
 // =======================
 function switchBoard(board) {
   currentBoard = board;
@@ -223,7 +232,7 @@ function switchBoard(board) {
 }
 
 // =======================
-// 📥 Load Posts (FIXED QUERY)
+// 📥 LOAD POSTS (FIXED)
 // =======================
 async function loadPosts() {
   document.getElementById("boardTitle").innerText = currentBoard;
@@ -235,7 +244,7 @@ async function loadPosts() {
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("Load error:", error);
+    console.error(error);
     return;
   }
 
