@@ -1,19 +1,20 @@
+// =======================
+// 🔧 Supabase setup
+// =======================
 const SUPABASE_URL = "https://lqisypgwjzvtxslmsuwc.supabase.co";
 const SUPABASE_KEY = "sb_publishable_t0odKZzr5g98bTl1O5yuMw_R86mrL7W";
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // =======================
-// 👤 Persistent user ID
+// 👤 User ID
 // =======================
 function getUserId() {
   let id = localStorage.getItem("userId");
-
   if (!id) {
     id = crypto.randomUUID();
     localStorage.setItem("userId", id);
   }
-
   return id;
 }
 
@@ -22,63 +23,70 @@ function getUserId() {
 // =======================
 function getAnonName() {
   let name = localStorage.getItem("anonName");
-
   if (!name) {
     name = "Anon" + Math.floor(Math.random() * 10000);
     localStorage.setItem("anonName", name);
   }
-
   return name;
 }
 
 // =======================
 // ⏱️ Time ago
 // =======================
-function timeAgo(timestamp) {
+function timeAgo(ts) {
   const now = new Date();
-  const past = new Date(timestamp);
+  const past = new Date(ts);
+  const diff = Math.floor((now - past) / 1000);
 
-  const seconds = Math.floor((now - past) / 1000);
-
-  if (seconds < 5) return "just now";
-  if (seconds < 60) return `${seconds} sec ago`;
-
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} min ago`;
-
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hr ago`;
-
-  const days = Math.floor(hours / 24);
-  return `${days} day${days !== 1 ? "s" : ""} ago`;
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
 }
 
 // =======================
-// 🔼 Upvote (secure)
+// 💬 Quote system (FULL FIXED)
+// =======================
+function quotePost(postId) {
+  const posts = window.__postsCache || [];
+
+  function find(list) {
+    for (let p of list) {
+      if (p.id === postId) return p;
+      if (p.replies) {
+        const found = find(p.replies);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  const post = find(posts);
+  if (!post) return;
+
+  const input = document.getElementById("postInput");
+
+  const quoted = post.text
+    .split("\n")
+    .map(line => "> " + line)
+    .join("\n");
+
+  input.value += `\n${post.author} wrote:\n${quoted}\n\n`;
+  input.focus();
+}
+
+// =======================
+// 🔼 Upvote (1 per user)
 // =======================
 async function upvote(postId) {
   const userId = getUserId();
 
-  // prevent UI spam
-  const btn = document.getElementById("upvote-" + postId);
-  if (btn) btn.disabled = true;
-
-  const { error } = await db.from("votes").insert({
+  await db.from("votes").insert({
     post_id: postId,
     user_id: userId
   });
 
-  if (error) {
-    if (error.code === "23505") {
-      // already voted
-      return;
-    }
-    console.error(error);
-    return;
-  }
-
-  // increment upvotes
-  const { data: post } = await db
+  const { data } = await db
     .from("posts")
     .select("upvotes")
     .eq("id", postId)
@@ -86,17 +94,8 @@ async function upvote(postId) {
 
   await db
     .from("posts")
-    .update({ upvotes: (post.upvotes || 0) + 1 })
+    .update({ upvotes: (data.upvotes || 0) + 1 })
     .eq("id", postId);
-}
-
-// =======================
-// 💬 Quote system
-// =======================
-function quotePost(id) {
-  const input = document.getElementById("postInput");
-  input.value += `>>${id}\n`;
-  input.focus();
 }
 
 // =======================
@@ -119,16 +118,18 @@ async function addPost() {
 // =======================
 // 💬 Add reply
 // =======================
-async function addReply(postId) {
-  const input = document.getElementById("replyInput-" + postId);
+async function addReply(parentId) {
+  const input = document.getElementById("replyInput-" + parentId);
   if (!input.value.trim()) return;
 
   await db.from("posts").insert({
     text: input.value,
     author: getAnonName(),
-    parent_id: postId,
+    parent_id: parentId,
     upvotes: 0
   });
+
+  input.value = "";
 }
 
 // =======================
@@ -158,6 +159,8 @@ function buildTree(posts) {
 // 🖼️ Render
 // =======================
 function renderPosts(posts) {
+  window.__postsCache = posts;
+
   const container = document.getElementById("posts");
   container.innerHTML = "";
 
@@ -165,22 +168,27 @@ function renderPosts(posts) {
     const div = document.createElement("div");
     div.className = post.parent_id ? "reply" : "post";
 
-    const formattedText = post.text.replace(
-      />>(\d+)/g,
-      `<span class="quote">>>$1</span>`
-    );
+    const formatted = post.text
+      .split("\n")
+      .map(line => {
+        if (line.startsWith(">")) {
+          return `<blockquote>${line}</blockquote>`;
+        }
+        return line;
+      })
+      .join("<br>");
 
     div.innerHTML = `
       <div class="meta">
         <strong>${post.author}</strong> • 
-        <span class="timestamp" data-time="${post.created_at}"></span>
+        ${timeAgo(post.created_at)}
       </div>
 
-      <p>${formattedText}</p>
+      <p>${formatted}</p>
 
       <div>
-         ${post.upvotes || 0}
-        <button id="upvote-${post.id}" onclick="upvote(${post.id})">Upvote</button>
+        ❤️ ${post.upvotes || 0}
+        <button onclick="upvote(${post.id})">Upvote</button>
         <button onclick="quotePost(${post.id})">Quote</button>
         <button onclick="toggleReplyBox(${post.id})">Reply</button>
       </div>
@@ -190,7 +198,7 @@ function renderPosts(posts) {
         <button onclick="addReply(${post.id})">Submit</button>
       </div>
 
-      <div id="replies-${post.id}"></div>
+      <div></div>
     `;
 
     parent.appendChild(div);
@@ -198,22 +206,8 @@ function renderPosts(posts) {
     post.replies.forEach(r => render(r, div));
   }
 
-  const tree = buildTree(posts);
-  tree.forEach(p => render(p, container));
-
-  updateTimestamps();
+  buildTree(posts).forEach(p => render(p, container));
 }
-
-// =======================
-// ⏱️ Update timestamps
-// =======================
-function updateTimestamps() {
-  document.querySelectorAll(".timestamp").forEach(el => {
-    el.innerText = timeAgo(el.dataset.time);
-  });
-}
-
-setInterval(updateTimestamps, 30000);
 
 // =======================
 // 🔁 Toggle reply box
@@ -235,7 +229,11 @@ async function init() {
   renderPosts(data);
 
   db.channel("forum")
-    .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, async () => {
+    .on("postgres_changes", {
+      event: "*",
+      schema: "public",
+      table: "posts"
+    }, async () => {
       const { data } = await db
         .from("posts")
         .select("*")
