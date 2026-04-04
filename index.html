@@ -2,23 +2,19 @@
 <html>
 <head>
   <title>Anon Forum</title>
-  <style>
-    body { font-family: Arial; }
-    .post { border: 1px solid #ccc; padding: 10px; margin: 10px; }
-    .reply { margin-left: 30px; border-left: 2px solid #aaa; padding-left: 10px; }
-    .meta { font-size: 12px; color: gray; }
-    textarea { width: 300px; height: 60px; }
-  </style>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<h1>Anonymous Forum</h1>
+<header>Anonymous Forum</header>
 
-<textarea id="postInput" placeholder="Write something..."></textarea><br>
-<button onclick="addPost()">Post</button>
+<div id="app">
+  <textarea id="postInput" placeholder="Write something..."></textarea><br>
+  <button onclick="addPost()">Post</button>
 
-<h2>Posts</h2>
-<div id="posts"></div>
+  <h2>Posts</h2>
+  <div id="posts"></div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
 <script src="app.js"></script>
