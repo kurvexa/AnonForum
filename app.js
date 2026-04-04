@@ -1,11 +1,15 @@
-// Supabase config
+// =======================
+// 🔧 Supabase Setup
+// =======================
 const SUPABASE_URL = "https://lqisypgwjzvtxslmsuwc.supabase.co";
 const SUPABASE_KEY = "sb_publishable_t0odKZzr5g98bTl1O5yuMw_R86mrL7W";
 
-// Create client (avoid naming conflict)
+// Create client (DO NOT name it supabase)
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Anonymous username
+// =======================
+// 👤 Anonymous username
+// =======================
 function getAnonName() {
   let name = localStorage.getItem("anonName");
 
@@ -17,18 +21,47 @@ function getAnonName() {
   return name;
 }
 
-function formatTime(timestamp) {
+// =======================
+// ⏱️ Time ago formatter
+// =======================
+function timeAgo(timestamp) {
   if (!timestamp) return "just now";
 
-  const date = new Date(timestamp);
+  const now = new Date();
+  const past = new Date(timestamp);
 
-  if (isNaN(date.getTime())) return "just now";
+  if (isNaN(past.getTime())) return "just now";
 
-  return date.toLocaleString(undefined, {
-    hour12: true
+  const seconds = Math.floor((now - past) / 1000);
+
+  if (seconds < 5) return "just now";
+  if (seconds < 60) return `${seconds} seconds ago`;
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes !== 1 ? "s" : ""} ago`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours !== 1 ? "s" : ""} ago`;
+
+  const days = Math.floor(hours / 24);
+  return `${days} day${days !== 1 ? "s" : ""} ago`;
+}
+
+// =======================
+// 🔄 Update timestamps live
+// =======================
+function updateTimestamps() {
+  document.querySelectorAll(".timestamp").forEach(el => {
+    const time = el.getAttribute("data-time");
+    el.innerText = timeAgo(time);
   });
 }
-// Add post
+
+setInterval(updateTimestamps, 30000);
+
+// =======================
+// ➕ Add post
+// =======================
 async function addPost() {
   const input = document.getElementById("postInput");
   if (!input.value.trim()) return;
@@ -42,7 +75,9 @@ async function addPost() {
   input.value = "";
 }
 
-// Add reply
+// =======================
+// 💬 Add reply
+// =======================
 async function addReply(postId) {
   const input = document.getElementById("replyInput-" + postId);
   if (!input.value.trim()) return;
@@ -54,19 +89,25 @@ async function addReply(postId) {
   });
 }
 
-// Toggle reply box
+// =======================
+// 🔁 Toggle reply box
+// =======================
 function toggleReplyBox(id) {
   const el = document.getElementById("replyBox-" + id);
   el.style.display = el.style.display === "none" ? "block" : "none";
 }
 
-// Toggle thread
+// =======================
+// 📂 Toggle thread
+// =======================
 function toggleThread(id) {
   const el = document.getElementById("replies-" + id);
   el.style.display = el.style.display === "none" ? "block" : "none";
 }
 
-// Build nested structure
+// =======================
+// 🌳 Build nested structure
+// =======================
 function buildTree(posts) {
   const map = {};
   const roots = [];
@@ -87,7 +128,9 @@ function buildTree(posts) {
   return roots;
 }
 
-// Render posts
+// =======================
+// 🖼️ Render posts
+// =======================
 function renderPosts(posts) {
   const container = document.getElementById("posts");
   container.innerHTML = "";
@@ -101,9 +144,12 @@ function renderPosts(posts) {
 
     div.innerHTML = `
       <div class="meta">
-        <strong>${post.author}</strong> • ${formatTime(post.created_at)}
+        <strong>${post.author}</strong> • 
+        <span class="timestamp" data-time="${post.created_at}"></span>
       </div>
+
       <p>${post.text}</p>
+
       <button onclick="toggleReplyBox(${post.id})">Reply</button>
       <button onclick="toggleThread(${post.id})">Collapse</button>
 
@@ -121,9 +167,13 @@ function renderPosts(posts) {
 
   const tree = buildTree(posts);
   tree.forEach(p => render(p, container));
+
+  updateTimestamps();
 }
 
-// Load + realtime sync
+// =======================
+// 🚀 Load + realtime sync
+// =======================
 async function init() {
   const { data, error } = await db
     .from("posts")
