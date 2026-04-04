@@ -9,9 +9,7 @@ const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 // =======================
 // 🛡️ MODERATOR IDS
 // =======================
-const MODS = [
-  "9878da6b-7e46-4add-b781-daf0aab15672"
-];
+const MODS = ["9878da6b-7e46-4add-b781-daf0aab15672"];
 
 // =======================
 // 🧠 STATE
@@ -75,6 +73,8 @@ async function addPost() {
   input.value = "";
 }
 
+window.addPost = addPost;
+
 // =======================
 // 💬 ADD REPLY
 // =======================
@@ -92,6 +92,8 @@ async function addReply(parentId) {
 
   input.value = "";
 }
+
+window.addReply = addReply;
 
 // =======================
 // 👍 UPVOTE
@@ -111,6 +113,41 @@ async function upvote(postId) {
 
   await db.rpc("increment_upvotes", { row_id: postId });
 }
+
+window.upvote = upvote;
+
+// =======================
+// 💬 QUOTE
+// =======================
+function quotePost(postId) {
+  const posts = window.__postsCache || [];
+
+  function find(list) {
+    for (let p of list) {
+      if (p.id === postId) return p;
+      if (p.replies) {
+        const found = find(p.replies);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  const post = find(posts);
+  if (!post) return;
+
+  const input = document.getElementById("postInput");
+
+  const quoted = (post.text || "")
+    .split("\n")
+    .map(line => "> " + line)
+    .join("\n");
+
+  input.value += `\n${post.author}:\n${quoted}\n\n`;
+  input.focus();
+}
+
+window.quotePost = quotePost;
 
 // =======================
 // 🌳 BUILD TREE
@@ -136,9 +173,11 @@ function buildTree(posts = []) {
 }
 
 // =======================
-// 🖼️ RENDER POSTS
+// 🖼️ RENDER
 // =======================
 function renderPosts(posts) {
+  window.__postsCache = posts || [];
+
   const container = document.getElementById("posts");
   container.innerHTML = "";
 
@@ -149,14 +188,14 @@ function renderPosts(posts) {
     const isMod = MODS.includes(post.user_id);
     const isYou = post.user_id === getUserId();
 
+    div.style.border = isYou
+      ? "2px solid #4a5a9c"
+      : "1px solid #ccd0d5";
+
     const formatted = (post.text || "")
       .split("\n")
       .map(line => line.startsWith(">") ? `<blockquote>${line}</blockquote>` : line)
       .join("<br>");
-
-    div.style.border = isYou
-      ? "2px solid #4a5a9c"
-      : "1px solid #ccd0d5";
 
     div.innerHTML = `
       <b>
@@ -169,6 +208,7 @@ function renderPosts(posts) {
 
       ${post.upvotes || 0}
       <button onclick="upvote(${post.id})">Upvote</button>
+      <button onclick="quotePost(${post.id})">Quote</button>
       <button onclick="toggleReplyBox(${post.id})">Reply</button>
 
       <div id="replyBox-${post.id}" style="display:none;">
@@ -188,12 +228,31 @@ function renderPosts(posts) {
 }
 
 // =======================
-// 🔽 TOGGLE REPLY
+// 🔽 REPLY TOGGLE
 // =======================
 function toggleReplyBox(id) {
   const el = document.getElementById("replyBox-" + id);
   el.style.display = el.style.display === "none" ? "block" : "none";
 }
+
+window.toggleReplyBox = toggleReplyBox;
+
+// =======================
+// 🔀 SWITCH BOARD
+// =======================
+function switchBoard(board) {
+  board = board.toLowerCase();
+  if (!BOARDS.includes(board)) board = "general";
+
+  currentBoard = board;
+
+  document.getElementById("boardTitle").innerText =
+    board.charAt(0).toUpperCase() + board.slice(1);
+
+  loadPosts();
+}
+
+window.switchBoard = switchBoard;
 
 // =======================
 // 📥 LOAD POSTS
