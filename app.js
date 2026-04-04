@@ -196,7 +196,7 @@ function renderPosts(posts) {
 
       <p>${formatted}</p>
 
-      ❤️ ${post.upvotes || 0}
+      ${post.upvotes || 0}
       <button onclick="upvote(${post.id})">Upvote</button>
       <button onclick="quotePost(${post.id})">Quote</button>
       <button onclick="toggleReplyBox(${post.id})">Reply</button>
