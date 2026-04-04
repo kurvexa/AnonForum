@@ -39,7 +39,11 @@ function getAnonName() {
   }
   return name;
 }
+const isYou = post.user_id === getUserId();
 
+div.style.border = isYou
+  ? "2px solid #4a5a9c"
+  : "1px solid #ccd0d5";
 // =======================
 // ⏱️ TIME
 // =======================
