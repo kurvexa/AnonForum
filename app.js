@@ -7,6 +7,13 @@ const SUPABASE_KEY = "sb_publishable_t0odKZzr5g98bTl1O5yuMw_R86mrL7W";
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // =======================
+// 🛡️ MODERATOR IDS
+// =======================
+const MODS = [
+  "9878da6b-7e46-4add-b781-daf0aab15672"
+];
+
+// =======================
 // 🧠 STATE
 // =======================
 const BOARDS = ["general", "tech", "gaming", "random"];
@@ -115,6 +122,7 @@ async function addPost() {
   const { error } = await db.from("posts").insert({
     text: input.value,
     author: getAnonName(),
+    user_id: getUserId(),
     board: currentBoard
   });
 
@@ -137,6 +145,7 @@ async function addReply(parentId) {
   const { error } = await db.from("posts").insert({
     text: input.value,
     author: getAnonName(),
+    user_id: getUserId(),
     parent_id: parentId,
     board: currentBoard
   });
@@ -186,17 +195,23 @@ function renderPosts(posts) {
     const div = document.createElement("div");
     div.className = post.parent_id ? "reply" : "post";
 
+    const isMod = MODS.includes(post.user_id);
+
     const formatted = (post.text || "")
       .split("\n")
       .map(line => line.startsWith(">") ? `<blockquote>${line}</blockquote>` : line)
       .join("<br>");
 
     div.innerHTML = `
-      <b>${post.author}</b> • ${timeAgo(post.created_at)}
+      <b>
+        ${post.author}
+        ${isMod ? '<span class="modTag">MOD</span>' : ''}
+      </b>
+      • ${timeAgo(post.created_at)}
 
       <p>${formatted}</p>
 
-      ${post.upvotes || 0}
+       ${post.upvotes || 0}
       <button onclick="upvote(${post.id})">Upvote</button>
       <button onclick="quotePost(${post.id})">Quote</button>
       <button onclick="toggleReplyBox(${post.id})">Reply</button>
@@ -226,10 +241,10 @@ function toggleReplyBox(id) {
 }
 
 // =======================
-// 🔀 SWITCH BOARD (FIXED)
+// 🔀 SWITCH BOARD
 // =======================
 function switchBoard(board) {
-  board = board.toLowerCase(); // 🔥 FIX
+  board = board.toLowerCase();
 
   if (!BOARDS.includes(board)) board = "general";
 
@@ -247,7 +262,7 @@ function switchBoard(board) {
 async function loadPosts() {
   const { data, error } = await db
     .from("posts")
-    .select("id, text, author, created_at, parent_id, upvotes, board")
+    .select("id, text, author, created_at, parent_id, upvotes, board, user_id")
     .eq("board", currentBoard)
     .order("created_at", { ascending: false });
 
