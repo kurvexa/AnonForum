@@ -209,7 +209,7 @@ function renderPosts(posts) {
     div.innerHTML = `
       <b>
         ${post.author}
-        ${isMod ? '<span class="modTag">MOD</span>' : ''}
+        ${isMod ? '<span class="modTag">MODERATOR</span>' : ''}
       </b>
       • ${timeAgo(post.created_at)}
 
