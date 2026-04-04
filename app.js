@@ -1,14 +1,9 @@
-// Get posts
-function getPosts() {
-  return JSON.parse(localStorage.getItem("posts")) || [];
-}
+const SUPABASE_URL = "https://lqisypgwjzvtxslmsuwc.supabase.co";
+const SUPABASE_KEY = "sb_publishable_t0odKZzr5g98bTl1O5yuMw_R86mrL7W";
 
-// Save posts
-function savePosts(posts) {
-  localStorage.setItem("posts", JSON.stringify(posts));
-}
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Persistent anonymous username
+// Anonymous username
 function getAnonName() {
   let name = localStorage.getItem("anonName");
 
@@ -20,80 +15,89 @@ function getAnonName() {
   return name;
 }
 
-// Format timestamp
+// Format time
 function formatTime(timestamp) {
-  const date = new Date(timestamp);
-  return date.toLocaleString();
+  return new Date(timestamp).toLocaleString();
 }
 
-// Add a new post
-function addPost() {
+// Add post
+async function addPost() {
   const input = document.getElementById("postInput");
   if (!input.value.trim()) return;
 
-  const posts = getPosts();
-
-  posts.push({
-    id: Date.now(),
+  await supabase.from("posts").insert({
     text: input.value,
     author: getAnonName(),
-    time: Date.now(),
-    replies: []
+    parent_id: null
   });
 
-  savePosts(posts);
   input.value = "";
-  renderPosts();
 }
 
-// Add a reply (recursive)
-function addReply(postId, posts = getPosts()) {
-  for (let post of posts) {
-    if (post.id === postId) {
-      const input = document.getElementById("replyInput-" + postId);
-      if (!input.value.trim()) return;
+// Add reply
+async function addReply(postId) {
+  const input = document.getElementById("replyInput-" + postId);
+  if (!input.value.trim()) return;
 
-      post.replies.push({
-        id: Date.now(),
-        text: input.value,
-        author: getAnonName(),
-        time: Date.now(),
-        replies: []
-      });
-
-      savePosts(posts);
-      renderPosts();
-      return true;
-    }
-
-    if (addReply(postId, post.replies)) return true;
-  }
-  return false;
+  await supabase.from("posts").insert({
+    text: input.value,
+    author: getAnonName(),
+    parent_id: postId
+  });
 }
 
 // Toggle reply box
-function toggleReplyBox(postId) {
-  const el = document.getElementById("replyBox-" + postId);
+function toggleReplyBox(id) {
+  const el = document.getElementById("replyBox-" + id);
   el.style.display = el.style.display === "none" ? "block" : "none";
 }
 
-// Render posts recursively
-function renderPosts() {
+// Toggle thread collapse
+function toggleThread(id) {
+  const el = document.getElementById("replies-" + id);
+  el.style.display = el.style.display === "none" ? "block" : "none";
+}
+
+// Build tree
+function buildTree(posts) {
+  const map = {};
+  const roots = [];
+
+  posts.forEach(p => {
+    p.replies = [];
+    map[p.id] = p;
+  });
+
+  posts.forEach(p => {
+    if (p.parent_id) {
+      map[p.parent_id]?.replies.push(p);
+    } else {
+      roots.push(p);
+    }
+  });
+
+  return roots;
+}
+
+// Render posts
+function renderPosts(posts) {
   const container = document.getElementById("posts");
   container.innerHTML = "";
-
-  const posts = getPosts();
 
   function render(post, parent, depth = 0) {
     const div = document.createElement("div");
     div.className = depth === 0 ? "post" : "reply";
 
+    const repliesDiv = document.createElement("div");
+    repliesDiv.id = "replies-" + post.id;
+
     div.innerHTML = `
       <div class="meta">
-        <strong>${post.author}</strong> • ${formatTime(post.time)}
+        <strong>${post.author}</strong> • ${formatTime(post.created_at)}
       </div>
       <p>${post.text}</p>
       <button onclick="toggleReplyBox(${post.id})">Reply</button>
+      <button onclick="toggleThread(${post.id})">Collapse</button>
 
       <div id="replyBox-${post.id}" style="display:none;">
         <textarea id="replyInput-${post.id}" placeholder="Reply..."></textarea><br>
@@ -101,13 +105,40 @@ function renderPosts() {
       </div>
     `;
 
+    div.appendChild(repliesDiv);
     parent.appendChild(div);
 
-    post.replies.forEach(r => render(r, div, depth + 1));
+    post.replies.forEach(r => render(r, repliesDiv, depth + 1));
   }
 
-  posts.forEach(p => render(p, container));
+  const tree = buildTree(posts);
+  tree.forEach(p => render(p, container));
 }
 
-// Initial load
-renderPosts();
+// Load + realtime
+async function init() {
+  const { data } = await supabase
+    .from("posts")
+    .select("*")
+    .order("created_at", { ascending: true });
+
+  renderPosts(data);
+
+  supabase
+    .channel("posts")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "posts" },
+      async () => {
+        const { data } = await supabase
+          .from("posts")
+          .select("*")
+          .order("created_at", { ascending: true });
+
+        renderPosts(data);
+      }
+    )
+    .subscribe();
+}
+
+init();
