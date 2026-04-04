@@ -1,14 +1,20 @@
 
-// 🔧 Supabase
+// =======================
+// 🔧 Supabase Setup
+// =======================
 const SUPABASE_URL = "https://lqisypgwjzvtxslmsuwc.supabase.co";
-const SUPABASE_KEY = "sb_publishable_t0odKZzr5g98bTl1O5yuMw_R86mrL7W";
+const SUPABASE_KEY = "YOUR_PUBLISHABLE_KEY";
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// =======================
 // 🧠 State
+// =======================
 let currentBoard = "general";
 
+// =======================
 // 👤 User
+// =======================
 function getUserId() {
   let id = localStorage.getItem("userId");
   if (!id) {
@@ -27,10 +33,17 @@ function getAnonName() {
   return name;
 }
 
-// ⏱️ Time
+// =======================
+// ⏱️ Time (FIXED)
+// =======================
 function timeAgo(ts) {
   if (!ts) return "just now";
-  const diff = Math.floor((new Date() - new Date(ts)) / 1000);
+
+  const past = new Date(ts);
+  if (isNaN(past)) return "just now";
+
+  const diff = Math.floor((new Date() - past) / 1000);
+
   if (diff < 0) return "just now";
   if (diff < 60) return `${diff}s ago`;
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
@@ -38,7 +51,9 @@ function timeAgo(ts) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-// 🔼 Upvote
+// =======================
+// 🔼 Upvote (ANTI-SPAM)
+// =======================
 async function upvote(postId) {
   const userId = getUserId();
 
@@ -48,14 +63,19 @@ async function upvote(postId) {
   });
 
   if (error) {
-    if (error.code === "23505") return;
+    if (error.code === "23505") return; // already voted
+    console.error(error);
     return;
   }
 
   await db.rpc("increment_upvotes", { row_id: postId });
+
+  loadPosts();
 }
 
+// =======================
 // 💬 Quote
+// =======================
 function quotePost(postId) {
   const posts = window.__postsCache || [];
 
@@ -63,8 +83,8 @@ function quotePost(postId) {
     for (let p of list) {
       if (p.id === postId) return p;
       if (p.replies) {
-        const f = find(p.replies);
-        if (f) return f;
+        const found = find(p.replies);
+        if (found) return found;
       }
     }
     return null;
@@ -77,14 +97,16 @@ function quotePost(postId) {
 
   const quoted = post.text
     .split("\n")
-    .map(l => "> " + l)
+    .map(line => "> " + line)
     .join("\n");
 
   input.value += `\n${post.author}:\n${quoted}\n\n`;
   input.focus();
 }
 
-// ➕ Post
+// =======================
+// ➕ Add Post
+// =======================
 async function addPost() {
   const input = document.getElementById("postInput");
   if (!input.value.trim()) return;
@@ -96,9 +118,12 @@ async function addPost() {
   });
 
   input.value = "";
+  loadPosts();
 }
 
-// 💬 Reply
+// =======================
+// 💬 Add Reply
+// =======================
 async function addReply(parentId) {
   const input = document.getElementById("replyInput-" + parentId);
   if (!input.value.trim()) return;
@@ -111,10 +136,13 @@ async function addReply(parentId) {
   });
 
   input.value = "";
+  loadPosts();
 }
 
-// 🌳 Tree
-function buildTree(posts) {
+// =======================
+// 🌳 Build Tree (SAFE)
+// =======================
+function buildTree(posts = []) {
   const map = {};
   const roots = [];
 
@@ -124,8 +152,8 @@ function buildTree(posts) {
   });
 
   posts.forEach(p => {
-    if (p.parent_id) {
-      map[p.parent_id]?.replies.push(p);
+    if (p.parent_id && map[p.parent_id]) {
+      map[p.parent_id].replies.push(p);
     } else {
       roots.push(p);
     }
@@ -134,9 +162,11 @@ function buildTree(posts) {
   return roots;
 }
 
+// =======================
 // 🖼️ Render
+// =======================
 function renderPosts(posts) {
-  window.__postsCache = posts;
+  window.__postsCache = posts || [];
 
   const container = document.getElementById("posts");
   container.innerHTML = "";
@@ -145,16 +175,17 @@ function renderPosts(posts) {
     const div = document.createElement("div");
     div.className = post.parent_id ? "reply" : "post";
 
-    const text = post.text
+    const formatted = (post.text || "")
       .split("\n")
       .map(line => line.startsWith(">") ? `<blockquote>${line}</blockquote>` : line)
       .join("<br>");
 
     div.innerHTML = `
       <b>${post.author}</b> • ${timeAgo(post.created_at)}
-      <p>${text}</p>
 
-      ${post.upvotes || 0}
+      <p>${formatted}</p>
+
+      ❤️ ${post.upvotes || 0}
       <button onclick="upvote(${post.id})">Upvote</button>
       <button onclick="quotePost(${post.id})">Quote</button>
       <button onclick="toggleReplyBox(${post.id})">Reply</button>
@@ -167,7 +198,7 @@ function renderPosts(posts) {
 
     parent.appendChild(div);
 
-    post.replies.forEach(r => render(r, div));
+    (post.replies || []).forEach(r => render(r, div));
   }
 
   buildTree(posts)
@@ -175,30 +206,43 @@ function renderPosts(posts) {
     .forEach(p => render(p, container));
 }
 
-// 🔽 Toggle reply
+// =======================
+// 🔽 Toggle Reply
+// =======================
 function toggleReplyBox(id) {
   const el = document.getElementById("replyBox-" + id);
   el.style.display = el.style.display === "none" ? "block" : "none";
 }
 
-// 🔄 Load posts
-async function loadPosts() {
-  document.getElementById("boardTitle").innerText = currentBoard;
-
-  const { data } = await db
-    .from("posts")
-    .select("*")
-    .eq("board", currentBoard)
-    .order("created_at", { ascending: false });
-
-  renderPosts(data);
-}
-
-// 🔀 Switch board
+// =======================
+// 🔀 Switch Board
+// =======================
 function switchBoard(board) {
   currentBoard = board;
   loadPosts();
 }
 
-// 🚀 Init
+// =======================
+// 📥 Load Posts (FIXED QUERY)
+// =======================
+async function loadPosts() {
+  document.getElementById("boardTitle").innerText = currentBoard;
+
+  const { data, error } = await db
+    .from("posts")
+    .select("*")
+    .eq("board", currentBoard)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Load error:", error);
+    return;
+  }
+
+  renderPosts(data || []);
+}
+
+// =======================
+// 🚀 INIT
+// =======================
 loadPosts();
