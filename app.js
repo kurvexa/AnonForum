@@ -1,8 +1,8 @@
-// ✅ Supabase config
+// Supabase config
 const SUPABASE_URL = "https://lqisypgwjzvtxslmsuwc.supabase.co";
 const SUPABASE_KEY = "sb_publishable_t0odKZzr5g98bTl1O5yuMw_R86mrL7W";
 
-// IMPORTANT: don't name this "supabase"
+// Create client (avoid naming conflict)
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Anonymous username
@@ -17,9 +17,15 @@ function getAnonName() {
   return name;
 }
 
-// Format time
+// FIXED timestamp handling
 function formatTime(timestamp) {
-  return new Date(timestamp).toLocaleString();
+  if (!timestamp) return "just now";
+
+  const date = new Date(timestamp);
+
+  if (isNaN(date.getTime())) return "just now";
+
+  return date.toLocaleString();
 }
 
 // Add post
@@ -27,13 +33,11 @@ async function addPost() {
   const input = document.getElementById("postInput");
   if (!input.value.trim()) return;
 
-  const { error } = await db.from("posts").insert({
+  await db.from("posts").insert({
     text: input.value,
     author: getAnonName(),
     parent_id: null
   });
-
-  if (error) console.error(error);
 
   input.value = "";
 }
@@ -43,13 +47,11 @@ async function addReply(postId) {
   const input = document.getElementById("replyInput-" + postId);
   if (!input.value.trim()) return;
 
-  const { error } = await db.from("posts").insert({
+  await db.from("posts").insert({
     text: input.value,
     author: getAnonName(),
     parent_id: postId
   });
-
-  if (error) console.error(error);
 }
 
 // Toggle reply box
@@ -58,13 +60,13 @@ function toggleReplyBox(id) {
   el.style.display = el.style.display === "none" ? "block" : "none";
 }
 
-// Toggle thread collapse
+// Toggle thread
 function toggleThread(id) {
   const el = document.getElementById("replies-" + id);
   el.style.display = el.style.display === "none" ? "block" : "none";
 }
 
-// Build tree structure
+// Build nested structure
 function buildTree(posts) {
   const map = {};
   const roots = [];
@@ -121,12 +123,11 @@ function renderPosts(posts) {
   tree.forEach(p => render(p, container));
 }
 
-// Initial load + realtime
+// Load + realtime sync
 async function init() {
-  // Load posts
   const { data, error } = await db
     .from("posts")
-    .select("*")
+    .select("id, text, author, parent_id, created_at")
     .order("created_at", { ascending: true });
 
   if (error) {
@@ -136,7 +137,6 @@ async function init() {
 
   renderPosts(data);
 
-  // Realtime updates
   db.channel("posts-channel")
     .on(
       "postgres_changes",
@@ -144,7 +144,7 @@ async function init() {
       async () => {
         const { data } = await db
           .from("posts")
-          .select("*")
+          .select("id, text, author, parent_id, created_at")
           .order("created_at", { ascending: true });
 
         renderPosts(data);
