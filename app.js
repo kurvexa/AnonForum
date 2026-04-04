@@ -5,40 +5,7 @@ const SUPABASE_URL = "https://lqisypgwjzvtxslmsuwc.supabase.co";
 const SUPABASE_KEY = "sb_publishable_t0odKZzr5g98bTl1O5yuMw_R86mrL7W";
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-// 🔥 REALTIME LISTENER
-function setupRealtime() {
-  supabase
-    .channel('posts-channel')
-    .on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'posts'
-      },
-      (payload) => {
-        console.log("New post received:", payload.new);
 
-        // Add the new post instantly without refreshing
-        addPostToDOM(payload.new);
-      }
-    )
-    .subscribe();
-}
-function addPostToDOM(post) {
-  const postsContainer = document.getElementById("posts");
-
-  const div = document.createElement("div");
-  div.className = "post";
-
-  div.innerHTML = `
-    <b>${post.author}</b>
-    <span class="timestamp">${new Date(post.created_at).toLocaleString()}</span>
-    <p>${post.text}</p>
-  `;
-
-  postsContainer.prepend(div); // adds to top like real forums
-}
 // =======================
 // 🛡️ MODERATOR IDS
 // =======================
@@ -72,11 +39,7 @@ function getAnonName() {
   }
   return name;
 }
-const isYou = post.user_id === getUserId();
 
-div.style.border = isYou
-  ? "2px solid #4a5a9c"
-  : "1px solid #ccd0d5";
 // =======================
 // ⏱️ TIME
 // =======================
@@ -85,12 +48,10 @@ function timeAgo(ts) {
 
   const past = new Date(ts);
   const now = new Date();
-
   if (isNaN(past.getTime())) return "just now";
 
   const diff = Math.floor((now - past) / 1000);
 
-  if (diff < 0) return "just now";
   if (diff < 60) return `${diff}s ago`;
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
@@ -98,7 +59,42 @@ function timeAgo(ts) {
 }
 
 // =======================
-// 🔼 UPVOTE
+// ➕ ADD POST
+// =======================
+async function addPost() {
+  const input = document.getElementById("postInput");
+  if (!input.value.trim()) return;
+
+  await db.from("posts").insert({
+    text: input.value,
+    author: getAnonName(),
+    user_id: getUserId(),
+    board: currentBoard
+  });
+
+  input.value = "";
+}
+
+// =======================
+// 💬 ADD REPLY
+// =======================
+async function addReply(parentId) {
+  const input = document.getElementById("replyInput-" + parentId);
+  if (!input.value.trim()) return;
+
+  await db.from("posts").insert({
+    text: input.value,
+    author: getAnonName(),
+    user_id: getUserId(),
+    parent_id: parentId,
+    board: currentBoard
+  });
+
+  input.value = "";
+}
+
+// =======================
+// 👍 UPVOTE
 // =======================
 async function upvote(postId) {
   const userId = getUserId();
@@ -114,86 +110,6 @@ async function upvote(postId) {
   }
 
   await db.rpc("increment_upvotes", { row_id: postId });
-
-  loadPosts();
-}
-
-// =======================
-// 💬 QUOTE
-// =======================
-function quotePost(postId) {
-  const posts = window.__postsCache || [];
-
-  function find(list) {
-    for (let p of list) {
-      if (p.id === postId) return p;
-      if (p.replies) {
-        const found = find(p.replies);
-        if (found) return found;
-      }
-    }
-    return null;
-  }
-
-  const post = find(posts);
-  if (!post) return;
-
-  const input = document.getElementById("postInput");
-
-  const quoted = (post.text || "")
-    .split("\n")
-    .map(line => "> " + line)
-    .join("\n");
-
-  input.value += `\n${post.author}:\n${quoted}\n\n`;
-  input.focus();
-}
-
-// =======================
-// ➕ ADD POST
-// =======================
-async function addPost() {
-  const input = document.getElementById("postInput");
-  if (!input.value.trim()) return;
-
-  const { error } = await db.from("posts").insert({
-    text: input.value,
-    author: getAnonName(),
-    user_id: getUserId(),
-    board: currentBoard
-  });
-
-  if (error) {
-    console.error(error);
-    return;
-  }
-
-  input.value = "";
-  loadPosts();
-}
-
-// =======================
-// 💬 ADD REPLY
-// =======================
-async function addReply(parentId) {
-  const input = document.getElementById("replyInput-" + parentId);
-  if (!input.value.trim()) return;
-
-  const { error } = await db.from("posts").insert({
-    text: input.value,
-    author: getAnonName(),
-    user_id: getUserId(),
-    parent_id: parentId,
-    board: currentBoard
-  });
-
-  if (error) {
-    console.error(error);
-    return;
-  }
-
-  input.value = "";
-  loadPosts();
 }
 
 // =======================
@@ -220,11 +136,9 @@ function buildTree(posts = []) {
 }
 
 // =======================
-// 🖼️ RENDER
+// 🖼️ RENDER POSTS
 // =======================
 function renderPosts(posts) {
-  window.__postsCache = posts || [];
-
   const container = document.getElementById("posts");
   container.innerHTML = "";
 
@@ -233,11 +147,16 @@ function renderPosts(posts) {
     div.className = post.parent_id ? "reply" : "post";
 
     const isMod = MODS.includes(post.user_id);
+    const isYou = post.user_id === getUserId();
 
     const formatted = (post.text || "")
       .split("\n")
       .map(line => line.startsWith(">") ? `<blockquote>${line}</blockquote>` : line)
       .join("<br>");
+
+    div.style.border = isYou
+      ? "2px solid #4a5a9c"
+      : "1px solid #ccd0d5";
 
     div.innerHTML = `
       <b>
@@ -248,9 +167,8 @@ function renderPosts(posts) {
 
       <p>${formatted}</p>
 
-       ${post.upvotes || 0}
+      ${post.upvotes || 0}
       <button onclick="upvote(${post.id})">Upvote</button>
-      <button onclick="quotePost(${post.id})">Quote</button>
       <button onclick="toggleReplyBox(${post.id})">Reply</button>
 
       <div id="replyBox-${post.id}" style="display:none;">
@@ -275,22 +193,6 @@ function renderPosts(posts) {
 function toggleReplyBox(id) {
   const el = document.getElementById("replyBox-" + id);
   el.style.display = el.style.display === "none" ? "block" : "none";
-}
-
-// =======================
-// 🔀 SWITCH BOARD
-// =======================
-function switchBoard(board) {
-  board = board.toLowerCase();
-
-  if (!BOARDS.includes(board)) board = "general";
-
-  currentBoard = board;
-
-  document.getElementById("boardTitle").innerText =
-    board.charAt(0).toUpperCase() + board.slice(1);
-
-  loadPosts();
 }
 
 // =======================
@@ -329,4 +231,3 @@ function setupRealtime() {
 // =======================
 setupRealtime();
 loadPosts();
-setupRealtime();
