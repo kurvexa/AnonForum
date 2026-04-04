@@ -1,21 +1,37 @@
 /* =======================
-   🌐 Global
+   🌐 Global reset
 ======================= */
 body {
   font-family: Arial, Helvetica, sans-serif;
   background: #eef2ff;
   color: #000;
   margin: 0;
-}
-
-/* Centered forum container */
-#app {
-  width: 800px;
-  margin: 20px auto;
+  padding: 0;
 }
 
 /* =======================
-   📦 Post boxes
+   📦 Main container (CENTER FIX)
+======================= */
+#app {
+  max-width: 800px;
+  margin: 20px auto;
+  padding: 10px;
+}
+
+/* =======================
+   📌 Header
+======================= */
+header {
+  background: #4a5a9c;
+  color: white;
+  padding: 10px;
+  font-size: 18px;
+  font-weight: bold;
+  text-align: center;
+}
+
+/* =======================
+   📦 Posts
 ======================= */
 .post {
   background: #d6daf0;
@@ -33,7 +49,7 @@ body {
 }
 
 /* =======================
-   👤 Meta line
+   👤 Meta
 ======================= */
 .meta {
   font-size: 12px;
@@ -59,7 +75,7 @@ p {
 ======================= */
 textarea {
   width: 100%;
-  height: 60px;
+  height: 80px;
   resize: none;
   font-family: Arial, Helvetica, sans-serif;
   font-size: 14px;
@@ -71,7 +87,7 @@ textarea {
 ======================= */
 button {
   margin-top: 5px;
-  padding: 3px 8px;
+  padding: 4px 10px;
   font-size: 12px;
   border: 1px solid #999;
   background: #eee;
@@ -83,41 +99,25 @@ button:hover {
 }
 
 /* =======================
-   🧵 Thread controls
+   🔗 Quote styling
+======================= */
+blockquote {
+  border-left: 3px solid #999;
+  margin: 5px 0;
+  padding-left: 8px;
+  color: #555;
+  background: #f3f3f3;
+}
+
+/* =======================
+   🧵 Thread spacing
 ======================= */
 #posts {
   margin-top: 20px;
 }
 
 /* =======================
-   🧱 Thread spacing
-======================= */
-.post > div {
-  margin-top: 8px;
-}
-
-/* =======================
-   🔗 Collapsed state
-======================= */
-#posts .collapsed > *:not(.meta) {
-  display: none;
-}
-
-/* =======================
-   📌 Header (optional)
-======================= */
-header {
-  background: #4a5a9c;
-  color: white;
-  padding: 10px;
-  font-size: 18px;
-  font-weight: bold;
-  border-bottom: 2px solid #2a3566;
-  text-align: center;
-}
-
-/* =======================
-   📉 Small details
+   ⏱️ Timestamp
 ======================= */
 .timestamp {
   color: #666;
