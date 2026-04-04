@@ -31,13 +31,19 @@ function getAnonName() {
 }
 
 // =======================
-// ⏱️ Time ago
+// ⏱️ Time ago (FIXED)
 // =======================
 function timeAgo(ts) {
+  if (!ts) return "just now";
+
   const now = new Date();
   const past = new Date(ts);
+
+  if (isNaN(past)) return "just now";
+
   const diff = Math.floor((now - past) / 1000);
 
+  if (diff < 0) return "just now";
   if (diff < 60) return `${diff}s ago`;
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
@@ -45,7 +51,7 @@ function timeAgo(ts) {
 }
 
 // =======================
-// 💬 Quote system (FULL FIXED)
+// 💬 Quote system (FIXED)
 // =======================
 function quotePost(postId) {
   const posts = window.__postsCache || [];
@@ -76,26 +82,23 @@ function quotePost(postId) {
 }
 
 // =======================
-// 🔼 Upvote (1 per user)
+// 🔼 Upvote (SAFE)
 // =======================
 async function upvote(postId) {
   const userId = getUserId();
 
-  await db.from("votes").insert({
+  const { error } = await db.from("votes").insert({
     post_id: postId,
     user_id: userId
   });
 
-  const { data } = await db
-    .from("posts")
-    .select("upvotes")
-    .eq("id", postId)
-    .single();
+  if (error) {
+    if (error.code === "23505") return; // already voted
+    console.error(error);
+    return;
+  }
 
-  await db
-    .from("posts")
-    .update({ upvotes: (data.upvotes || 0) + 1 })
-    .eq("id", postId);
+  await db.rpc("increment_upvotes", { row_id: postId });
 }
 
 // =======================
@@ -108,8 +111,7 @@ async function addPost() {
   await db.from("posts").insert({
     text: input.value,
     author: getAnonName(),
-    parent_id: null,
-    upvotes: 0
+    parent_id: null
   });
 
   input.value = "";
@@ -125,8 +127,7 @@ async function addReply(parentId) {
   await db.from("posts").insert({
     text: input.value,
     author: getAnonName(),
-    parent_id: parentId,
-    upvotes: 0
+    parent_id: parentId
   });
 
   input.value = "";
@@ -156,7 +157,7 @@ function buildTree(posts) {
 }
 
 // =======================
-// 🖼️ Render
+// 🖼️ Render posts
 // =======================
 function renderPosts(posts) {
   window.__postsCache = posts;
@@ -180,14 +181,13 @@ function renderPosts(posts) {
 
     div.innerHTML = `
       <div class="meta">
-        <strong>${post.author}</strong> • 
-        ${timeAgo(post.created_at)}
+        <strong>${post.author}</strong> • ${timeAgo(post.created_at)}
       </div>
 
       <p>${formatted}</p>
 
       <div>
-         ${post.upvotes || 0}
+        ${post.upvotes || 0}
         <button onclick="upvote(${post.id})">Upvote</button>
         <button onclick="quotePost(${post.id})">Quote</button>
         <button onclick="toggleReplyBox(${post.id})">Reply</button>
@@ -197,8 +197,6 @@ function renderPosts(posts) {
         <textarea id="replyInput-${post.id}"></textarea>
         <button onclick="addReply(${post.id})">Submit</button>
       </div>
-
-      <div></div>
     `;
 
     parent.appendChild(div);
