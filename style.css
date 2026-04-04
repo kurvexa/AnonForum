@@ -18,13 +18,14 @@ body {
   border: 1px solid #c5c9d1;
   box-shadow: 0 2px 6px rgba(0,0,0,0.1);
   padding: 15px;
+  border-radius: 4px;
 }
 
 /* =======================
    📌 Board Bar
 ======================= */
 #boardBar {
-  background: linear-gradient(#4c66a4, #3b5998);
+  background: linear-gradient(#5a78c9, #3b5998);
   padding: 8px;
   border-bottom: 1px solid #2e477a;
 }
@@ -50,6 +51,7 @@ body {
   margin: 12px 0;
   padding: 10px;
   border-radius: 3px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
 
 /* =======================
@@ -127,8 +129,12 @@ blockquote {
   padding-left: 8px;
   color: #555;
   background: #f3f3f3;
-   
-   .modTag {
+}
+
+/* =======================
+   🛡️ MOD TAG
+======================= */
+.modTag {
   background: #d9534f;
   color: white;
   font-size: 10px;
@@ -136,5 +142,4 @@ blockquote {
   margin-left: 6px;
   border-radius: 3px;
   font-weight: bold;
-}
 }
