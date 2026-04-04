@@ -1,7 +1,9 @@
+// ✅ Supabase config
 const SUPABASE_URL = "https://lqisypgwjzvtxslmsuwc.supabase.co";
 const SUPABASE_KEY = "sb_publishable_t0odKZzr5g98bTl1O5yuMw_R86mrL7W";
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// IMPORTANT: don't name this "supabase"
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Anonymous username
 function getAnonName() {
@@ -25,11 +27,13 @@ async function addPost() {
   const input = document.getElementById("postInput");
   if (!input.value.trim()) return;
 
-  await supabase.from("posts").insert({
+  const { error } = await db.from("posts").insert({
     text: input.value,
     author: getAnonName(),
     parent_id: null
   });
+
+  if (error) console.error(error);
 
   input.value = "";
 }
@@ -39,11 +43,13 @@ async function addReply(postId) {
   const input = document.getElementById("replyInput-" + postId);
   if (!input.value.trim()) return;
 
-  await supabase.from("posts").insert({
+  const { error } = await db.from("posts").insert({
     text: input.value,
     author: getAnonName(),
     parent_id: postId
   });
+
+  if (error) console.error(error);
 }
 
 // Toggle reply box
@@ -58,7 +64,7 @@ function toggleThread(id) {
   el.style.display = el.style.display === "none" ? "block" : "none";
 }
 
-// Build tree
+// Build tree structure
 function buildTree(posts) {
   const map = {};
   const roots = [];
@@ -115,22 +121,28 @@ function renderPosts(posts) {
   tree.forEach(p => render(p, container));
 }
 
-// Load + realtime
+// Initial load + realtime
 async function init() {
-  const { data } = await supabase
+  // Load posts
+  const { data, error } = await db
     .from("posts")
     .select("*")
     .order("created_at", { ascending: true });
 
+  if (error) {
+    console.error(error);
+    return;
+  }
+
   renderPosts(data);
 
-  supabase
-    .channel("posts")
+  // Realtime updates
+  db.channel("posts-channel")
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "posts" },
       async () => {
-        const { data } = await supabase
+        const { data } = await db
           .from("posts")
           .select("*")
           .order("created_at", { ascending: true });
