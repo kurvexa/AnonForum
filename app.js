@@ -1,13 +1,10 @@
-// =======================
-// 🔧 Supabase Setup
-// =======================
 const SUPABASE_URL = "https://lqisypgwjzvtxslmsuwc.supabase.co";
-const SUPABASE_KEY = "sb_publishable_t0odKZzr5g98bTl1O5yuMw_R86mrL7W";
+const SUPABASE_KEY = "YOUR_PUBLISHABLE_KEY";
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // =======================
-// 👤 User ID (persistent)
+// 👤 Persistent user ID
 // =======================
 function getUserId() {
   let id = localStorage.getItem("userId");
@@ -57,28 +54,30 @@ function timeAgo(timestamp) {
 }
 
 // =======================
-// 🔼 Upvote (with protection)
+// 🔼 Upvote (secure)
 // =======================
 async function upvote(postId) {
   const userId = getUserId();
 
-  // Check if already voted
-  const { data: existing } = await db
-    .from("votes")
-    .select("*")
-    .eq("post_id", postId)
-    .eq("user_id", userId)
-    .single();
+  // prevent UI spam
+  const btn = document.getElementById("upvote-" + postId);
+  if (btn) btn.disabled = true;
 
-  if (existing) return; // already voted
-
-  // Insert vote
-  await db.from("votes").insert({
+  const { error } = await db.from("votes").insert({
     post_id: postId,
     user_id: userId
   });
 
-  // Increment upvotes
+  if (error) {
+    if (error.code === "23505") {
+      // already voted
+      return;
+    }
+    console.error(error);
+    return;
+  }
+
+  // increment upvotes
   const { data: post } = await db
     .from("posts")
     .select("upvotes")
@@ -166,7 +165,7 @@ function renderPosts(posts) {
     const div = document.createElement("div");
     div.className = post.parent_id ? "reply" : "post";
 
-    const quotedText = post.text.replace(
+    const formattedText = post.text.replace(
       />>(\d+)/g,
       `<span class="quote">>>$1</span>`
     );
@@ -177,11 +176,11 @@ function renderPosts(posts) {
         <span class="timestamp" data-time="${post.created_at}"></span>
       </div>
 
-      <p>${quotedText}</p>
+      <p>${formattedText}</p>
 
       <div>
-        🔼 <span>${post.upvotes || 0}</span>
-        <button onclick="upvote(${post.id})">Upvote</button>
+         ${post.upvotes || 0}
+        <button id="upvote-${post.id}" onclick="upvote(${post.id})">Upvote</button>
         <button onclick="quotePost(${post.id})">Quote</button>
         <button onclick="toggleReplyBox(${post.id})">Reply</button>
       </div>
@@ -217,7 +216,7 @@ function updateTimestamps() {
 setInterval(updateTimestamps, 30000);
 
 // =======================
-// 🔄 Toggle reply box
+// 🔁 Toggle reply box
 // =======================
 function toggleReplyBox(id) {
   const el = document.getElementById("replyBox-" + id);
@@ -225,7 +224,7 @@ function toggleReplyBox(id) {
 }
 
 // =======================
-// 🚀 Load + realtime
+// 🚀 Init + realtime
 // =======================
 async function init() {
   const { data } = await db
