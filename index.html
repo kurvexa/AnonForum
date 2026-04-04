@@ -1,19 +1,74 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Anon Forum</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <title>Forum</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #eee;
+      margin: 0;
+    }
+
+    #container {
+      width: 800px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+    }
+
+    .post {
+      border: 1px solid #ccc;
+      margin: 10px 0;
+      padding: 10px;
+      background: #fafafa;
+    }
+
+    .reply {
+      margin-left: 40px;
+      border-left: 2px solid #ccc;
+      padding-left: 10px;
+    }
+
+    blockquote {
+      color: green;
+      margin: 5px 0;
+    }
+
+    textarea {
+      width: 100%;
+      height: 60px;
+    }
+
+    button {
+      margin-top: 5px;
+    }
+
+    #boardBar button {
+      margin-right: 5px;
+    }
+  </style>
 </head>
+
 <body>
 
-<header>Anonymous Forum</header>
+<div id="container">
 
-<div id="app">
-  <textarea id="postInput" placeholder="Write something..."></textarea><br>
+  <div id="boardBar">
+    <button onclick="switchBoard('general')">General</button>
+    <button onclick="switchBoard('tech')">Tech</button>
+    <button onclick="switchBoard('gaming')">Gaming</button>
+    <button onclick="switchBoard('random')">Random</button>
+  </div>
+
+  <h2 id="boardTitle">General</h2>
+
+  <textarea id="postInput"></textarea>
   <button onclick="addPost()">Post</button>
 
-  <h2>Posts</h2>
   <div id="posts"></div>
+
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
