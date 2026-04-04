@@ -5,7 +5,40 @@ const SUPABASE_URL = "https://lqisypgwjzvtxslmsuwc.supabase.co";
 const SUPABASE_KEY = "sb_publishable_t0odKZzr5g98bTl1O5yuMw_R86mrL7W";
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// 🔥 REALTIME LISTENER
+function setupRealtime() {
+  supabase
+    .channel('posts-channel')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'posts'
+      },
+      (payload) => {
+        console.log("New post received:", payload.new);
 
+        // Add the new post instantly without refreshing
+        addPostToDOM(payload.new);
+      }
+    )
+    .subscribe();
+}
+function addPostToDOM(post) {
+  const postsContainer = document.getElementById("posts");
+
+  const div = document.createElement("div");
+  div.className = "post";
+
+  div.innerHTML = `
+    <b>${post.author}</b>
+    <span class="timestamp">${new Date(post.created_at).toLocaleString()}</span>
+    <p>${post.text}</p>
+  `;
+
+  postsContainer.prepend(div); // adds to top like real forums
+}
 // =======================
 // 🛡️ MODERATOR IDS
 // =======================
@@ -296,3 +329,4 @@ function setupRealtime() {
 // =======================
 setupRealtime();
 loadPosts();
+setupRealtime();
