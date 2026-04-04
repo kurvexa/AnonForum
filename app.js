@@ -34,7 +34,7 @@ function getAnonName() {
 }
 
 // =======================
-// ⏱️ TIME FIXED
+// ⏱️ TIME
 // =======================
 function timeAgo(ts) {
   if (!ts) return "just now";
@@ -218,7 +218,7 @@ function renderPosts(posts) {
 }
 
 // =======================
-// 🔽 TOGGLE REPLY BOX
+// 🔽 TOGGLE REPLY
 // =======================
 function toggleReplyBox(id) {
   const el = document.getElementById("replyBox-" + id);
@@ -226,12 +226,15 @@ function toggleReplyBox(id) {
 }
 
 // =======================
-// 🔀 SWITCH BOARD
+// 🔀 SWITCH BOARD (FIXED)
 // =======================
 function switchBoard(board) {
+  board = board.toLowerCase(); // 🔥 FIX
+
   if (!BOARDS.includes(board)) board = "general";
 
   currentBoard = board;
+
   document.getElementById("boardTitle").innerText =
     board.charAt(0).toUpperCase() + board.slice(1);
 
@@ -257,7 +260,7 @@ async function loadPosts() {
 }
 
 // =======================
-// 🔔 REAL-TIME (NO REFRESH)
+// 🔔 REALTIME
 // =======================
 function setupRealtime() {
   db.channel("posts-channel")
@@ -273,8 +276,4 @@ function setupRealtime() {
 // 🚀 INIT
 // =======================
 setupRealtime();
-loadPosts();
-// =======================
-// 🚀 INIT
-// =======================
 loadPosts();
