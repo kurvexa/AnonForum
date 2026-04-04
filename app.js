@@ -17,7 +17,6 @@ function getAnonName() {
   return name;
 }
 
-// FIXED timestamp handling
 function formatTime(timestamp) {
   if (!timestamp) return "just now";
 
@@ -25,9 +24,10 @@ function formatTime(timestamp) {
 
   if (isNaN(date.getTime())) return "just now";
 
-  return date.toLocaleString();
+  return date.toLocaleString(undefined, {
+    hour12: true
+  });
 }
-
 // Add post
 async function addPost() {
   const input = document.getElementById("postInput");
