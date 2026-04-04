@@ -206,7 +206,7 @@ function renderPosts(posts) {
     post.replies.forEach(r => render(r, div));
   }
 
-  buildTree(posts).forEach(p => render(p, container));
+ buildTree(posts).reverse().forEach(p => render(p, container));
 }
 
 // =======================
@@ -224,7 +224,7 @@ async function init() {
   const { data } = await db
     .from("posts")
     .select("*")
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: false });
 
   renderPosts(data);
 
@@ -237,7 +237,7 @@ async function init() {
       const { data } = await db
         .from("posts")
         .select("*")
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false });
 
       renderPosts(data);
     })
