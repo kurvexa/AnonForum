@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Anon Forum</title>
+  <style>
+    body { font-family: Arial; }
+    .post { border: 1px solid #ccc; padding: 10px; margin: 10px; }
+    .reply { margin-left: 30px; border-left: 2px solid #aaa; padding-left: 10px; }
+    .meta { font-size: 12px; color: gray; }
+    textarea { width: 300px; height: 60px; }
+  </style>
+</head>
+<body>
+
+<h1>Anonymous Forum</h1>
+
+<textarea id="postInput" placeholder="Write something..."></textarea><br>
+<button onclick="addPost()">Post</button>
+
+<h2>Posts</h2>
+<div id="posts"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
