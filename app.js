@@ -1,20 +1,32 @@
+// Get posts
 function getPosts() {
   return JSON.parse(localStorage.getItem("posts")) || [];
 }
 
+// Save posts
 function savePosts(posts) {
   localStorage.setItem("posts", JSON.stringify(posts));
 }
 
-function generateAnon() {
-  return "Anon" + Math.floor(Math.random() * 10000);
+// Persistent anonymous username
+function getAnonName() {
+  let name = localStorage.getItem("anonName");
+
+  if (!name) {
+    name = "Anon" + Math.floor(Math.random() * 10000);
+    localStorage.setItem("anonName", name);
+  }
+
+  return name;
 }
 
+// Format timestamp
 function formatTime(timestamp) {
   const date = new Date(timestamp);
   return date.toLocaleString();
 }
 
+// Add a new post
 function addPost() {
   const input = document.getElementById("postInput");
   if (!input.value.trim()) return;
@@ -24,7 +36,7 @@ function addPost() {
   posts.push({
     id: Date.now(),
     text: input.value,
-    author: generateAnon(),
+    author: getAnonName(),
     time: Date.now(),
     replies: []
   });
@@ -34,7 +46,7 @@ function addPost() {
   renderPosts();
 }
 
-// 🔁 Recursive reply finder
+// Add a reply (recursive)
 function addReply(postId, posts = getPosts()) {
   for (let post of posts) {
     if (post.id === postId) {
@@ -44,7 +56,7 @@ function addReply(postId, posts = getPosts()) {
       post.replies.push({
         id: Date.now(),
         text: input.value,
-        author: generateAnon(),
+        author: getAnonName(),
         time: Date.now(),
         replies: []
       });
@@ -65,7 +77,7 @@ function toggleReplyBox(postId) {
   el.style.display = el.style.display === "none" ? "block" : "none";
 }
 
-// 🔁 Recursive renderer
+// Render posts recursively
 function renderPosts() {
   const container = document.getElementById("posts");
   container.innerHTML = "";
@@ -97,4 +109,5 @@ function renderPosts() {
   posts.forEach(p => render(p, container));
 }
 
+// Initial load
 renderPosts();
