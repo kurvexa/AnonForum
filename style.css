@@ -14,10 +14,35 @@ body {
 h1 { text-align: center; color: #af0a0f; margin: 5px; }
 hr { border: 0; border-top: 1px solid #d9bfb7; margin: 10px 0; }
 
-/* POST FORM */
-.postForm { margin: auto; }
-.formLabel { background: #ea8; color: #800; font-weight: bold; padding: 5px; text-align: center; }
-textarea { width: 350px; height: 100px; border: 1px solid #a9a9a9; }
+.postForm {
+    margin: 20px auto;
+    border-collapse: collapse;
+    background-color: #f0e0d6; /* Matches body */
+}
+
+.formLabel {
+    background-color: #eeaa88; /* The classic orange-ish header */
+    color: #800000;
+    font-weight: bold;
+    padding: 5px 10px;
+    border: 1px solid #d9bfb7;
+    text-align: right;
+    width: 80px;
+}
+
+.postForm td {
+    border: 1px solid #d9bfb7;
+    padding: 2px;
+}
+
+textarea {
+    display: block;
+    width: 300px;
+    height: 100px;
+    margin: 0;
+    border: 1px solid #a9a9a9;
+    font-family: monospace;
+}
 
 /* POSTS & REPLIES */
 .post { margin: 4px 0; border: 1px solid #b7c5d9; padding: 5px 10px; }
