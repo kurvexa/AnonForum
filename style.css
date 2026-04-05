@@ -1,139 +1,67 @@
-/* =======================
-    🌐 Global 
-======================= */
+
 body {
-  font-family: arial, helvetica, sans-serif;
   background: #f0e0d6;
-  color: #800000; 
-  margin: 0;
-  padding: 10px;
+  color: #800000;
+  font-family: arial,helvetica,sans-serif;
+  font-size: 10pt;
+  margin: 0; padding: 10px;
 }
 
-/* =======================
-    📦 Container
-======================= */
-#container {
-  max-width: 95%;
-  margin: 0 auto;
-}
-
-/* =======================
-    📌 Board Bar (Top Navigation)
-======================= */
 #boardBar {
-  background: transparent;
-  border-bottom: 1px solid #d9bfb7;
-  padding: 5px;
+  font-size: 9pt;
   text-align: center;
-  font-size: 13px;
+  margin-bottom: 10px;
   color: #333;
 }
 
 #boardBar button {
-  background: none;
-  border: none;
-  color: #34345c;
-  text-decoration: underline;
-  padding: 0 5px;
-  cursor: pointer;
-  font-weight: bold;
+  background: none; border: none; color: #34345c;
+  cursor: pointer; font-weight: bold; text-decoration: underline;
 }
 
-#boardBar button:hover {
-  color: #ff0000;
+#container { max-width: 95%; margin: auto; }
+
+h1 { font-size: 18pt; text-align: center; color: #af0a0f; margin: 5px; }
+
+hr { border: 0; border-top: 1px solid #d9bfb7; height: 0; margin: 10px 0; }
+
+/* POST FORM */
+.postForm { margin: auto; border-collapse: collapse; }
+.formLabel { background: #ea8; color: #800; font-weight: bold; padding: 0 5px; width: 80px; }
+textarea { width: 300px; height: 100px; border: 1px solid #a9a9a9; }
+#submitBtn { cursor: pointer; }
+
+/* POSTS */
+.post { display: table; margin: 4px 0; }
+.op { display: block; }
+.reply { 
+  background: #d6bad0; 
+  border: 1px solid #b7c5d9; 
+  border-left: none; border-top: none; 
+  padding: 5px 10px; 
 }
 
-/* =======================
-    🧵 Posts
-======================= */
-.post {
-  display: table; /* Makes the box wrap tightly to content */
-  word-wrap: break-word;
-  background: #d6bad0; /* Light Purple/Grey post background */
-  border: 1px solid #b7c5d9;
-  border-left: none;
-  border-top: none;
-  margin: 4px 0;
-  padding: 5px 10px;
-  box-shadow: none;
-  border-radius: 0; 
-}
+.reply-section { margin-left: 20px; }
 
-/* OP Post (The very first post in a thread usually looks different) */
-#posts > .post:first-child {
-  background: transparent;
-  border: none;
+.post-header { font-size: 9pt; color: #117743; margin-bottom: 5px; }
+.name { font-weight: bold; color: #117743; }
+.ts { color: #333; }
+.relink { cursor: pointer; color: #34345c; text-decoration: underline; }
+
+.post-body { color: #000; padding-top: 5px; line-height: 1.2; }
+blockquote { color: #789922; margin: 0; }
+
+/* CATALOG VIEW */
+.topic-row {
   display: block;
+  background: #d6bad0;
+  border: 1px solid #b7c5d9;
+  padding: 8px;
+  margin-bottom: 5px;
 }
+.subject { font-weight: bold; color: #0f0c5d; cursor: pointer; }
+.subject:hover { text-decoration: underline; }
+.meta { font-size: 9pt; color: #444; margin-left: 10px; }
 
-/* =======================
-    👤 Author / Meta
-======================= */
-b {
-  color: #117743; /* Classic Green Name */
-  font-size: 13px;
-}
-
-.modTag {
-  color: #ff0000 !important;
-  font-weight: 800;
-  background: none;
-  box-shadow: none;
-  padding: 0;
-}
-
-/* =======================
-    📝 Text & Greentext
-======================= */
-p {
-  color: #000000;
-  font-size: 13px;
-  margin: 5px 0;
-}
-
-/* The legendary "Greentext" */
-blockquote {
-  color: #789922;
-  border: none;
-  background: none;
-  margin: 0;
-  padding: 0;
-  font-family: inherit;
-}
-
-/* =======================
-    🧾 Inputs (The Posting Box)
-======================= */
-#postInput, textarea {
-  border: 1px solid #a9a9a9;
-  background: #ffffff;
-  font-family: monospace;
-  font-size: 12px;
-  padding: 2px;
-}
-
-/* =======================
-    🔘 Buttons
-======================= */
-button {
-  background: #eeeeee;
-  border: 1px solid #333;
-  color: #000;
-  font-family: sans-serif;
-  font-size: 11px;
-  padding: 1px 4px;
-  cursor: pointer;
-}
-
-button:hover {
-  background: #dddddd;
-}
-
-/* =======================
-    📏 Horizontal Rule 
-======================= */
-hr {
-  border: 0;
-  border-top: 1px solid #d9bfb7;
-  height: 0;
-}
+.modTag { color: red; font-weight: bold; font-size: 8pt; }
+.backBtn { font-weight: bold; color: #34345c; text-decoration: none; }
