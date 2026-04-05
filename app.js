@@ -16,7 +16,7 @@ const MODS = ["9878da6b-7e46-4add-b781-daf0aab15672"];
 // =======================
 const BOARDS = ["general", "tech", "gaming", "random"];
 let currentBoard = "general";
-let cachedPosts = []; // Stores posts locally to refresh timestamps without DB calls
+let cachedPosts = []; 
 
 // =======================
 // 👤 USER UTILS
@@ -40,18 +40,20 @@ function getAnonName() {
 }
 
 // =======================
-// ⏱️ TIME FIX (Parsed for ISO 8601)
+// ⏱️ TIME FIX (UTC Standardized)
 // =======================
 function timeAgo(ts) {
   if (!ts) return "just now";
 
-  // Standard ISO parsing
-  const past = new Date(ts);
-  const now = new Date();
+  // Parse Supabase UTC string to Unix Epoch (milliseconds)
+  const past = new Date(ts).getTime();
+  const now = Date.now();
 
-  if (isNaN(past.getTime())) return "Timestamp ISO parsing failed. Please contact a moderator to notify them of this issue.";
+  if (isNaN(past)) return "Date Error";
 
-  // Math.max(0, ...) prevents "just now" glitches if client clock is slow
+  // Math.floor( (now - past) / 1000 ) gives us the difference in seconds.
+  // We use Math.max(0, ...) so that if the user's system clock is slightly 
+  // ahead of the server, it doesn't result in a negative number.
   const diff = Math.max(0, Math.floor((now - past) / 1000));
 
   if (diff < 30) return `just now`;
@@ -68,13 +70,14 @@ async function addPost() {
   const input = document.getElementById("postInput");
   if (!input.value.trim()) return;
 
-  await db.from("posts").insert({
+  const { error } = await db.from("posts").insert({
     text: input.value,
     author: getAnonName(),
     user_id: getUserId(),
     board: currentBoard
   });
 
+  if (error) console.error("Post error:", error);
   input.value = "";
 }
 window.addPost = addPost;
@@ -83,7 +86,7 @@ async function addReply(parentId) {
   const input = document.getElementById("replyInput-" + parentId);
   if (!input.value.trim()) return;
 
-  await db.from("posts").insert({
+  const { error } = await db.from("posts").insert({
     text: input.value,
     author: getAnonName(),
     user_id: getUserId(),
@@ -91,6 +94,7 @@ async function addReply(parentId) {
     board: currentBoard
   });
 
+  if (error) console.error("Reply error:", error);
   input.value = "";
 }
 window.addReply = addReply;
@@ -102,6 +106,7 @@ async function upvote(postId) {
     user_id: userId
   });
 
+  // 23505 is the Postgres error code for unique constraint (already voted)
   if (error && error.code !== "23505") return;
   await db.rpc("increment_upvotes", { row_id: postId });
 }
@@ -138,7 +143,8 @@ function renderPosts(posts) {
   if (!container) return;
   
   container.innerHTML = "";
-  const tree = buildTree(JSON.parse(JSON.stringify(posts))); // Use a copy to avoid mutation
+  // Create a deep copy to prevent mutating cachedPosts during tree building
+  const tree = buildTree(JSON.parse(JSON.stringify(posts)));
 
   function renderFlat(post, depth = 0) {
     const div = document.createElement("div");
@@ -149,6 +155,8 @@ function renderPosts(posts) {
     div.className = "post";
     div.style.marginLeft = `${indent * 20}px`;
     div.style.border = isYou ? "2px solid #4a5a9c" : "1px solid #ccd0d5";
+    div.style.padding = "10px";
+    div.style.marginBottom = "5px";
 
     const formatted = (post.text || "")
       .split("\n")
@@ -156,15 +164,19 @@ function renderPosts(posts) {
       .join("<br>");
 
     div.innerHTML = `
-      <b>${post.author} ${isMod ? '<span class="modTag">MODERATOR</span>' : ''}</b>
-      • ${timeAgo(post.created_at)}
+      <div class="post-header">
+        <b>${post.author} ${isMod ? '<span class="modTag" style="color:red; font-size:0.8em;">MODERATOR</span>' : ''}</b>
+        <small> • ${timeAgo(post.created_at)}</small>
+      </div>
       <p>${formatted}</p>
-      <span>${post.upvotes || 0}</span>
-      <button onclick="upvote(${post.id})">Upvote</button>
-      <button onclick="quotePost(${post.id})">Quote</button>
-      <button onclick="toggleReplyBox(${post.id})">Reply</button>
+      <div class="post-actions">
+        <span>${post.upvotes || 0} upvotes</span>
+        <button onclick="upvote(${post.id})">Upvote</button>
+        <button onclick="quotePost(${post.id})">Quote</button>
+        <button onclick="toggleReplyBox(${post.id})">Reply</button>
+      </div>
       <div id="replyBox-${post.id}" style="display:none; margin-top:10px;">
-        <textarea id="replyInput-${post.id}"></textarea><br>
+        <textarea id="replyInput-${post.id}" style="width:100%"></textarea><br>
         <button onclick="addReply(${post.id})">Send</button>
       </div>
     `;
@@ -172,6 +184,7 @@ function renderPosts(posts) {
     (post.replies || []).forEach(r => renderFlat(r, depth + 1));
   }
 
+  // Newest threads at the top
   tree.reverse().forEach(p => renderFlat(p));
 }
 
@@ -191,7 +204,6 @@ async function loadPosts() {
   renderPosts(cachedPosts);
 }
 
-// Re-renders the existing data to update the "X minutes ago" text
 function refreshUI() {
   if (cachedPosts.length > 0) {
     renderPosts(cachedPosts);
@@ -222,7 +234,8 @@ function switchBoard(board) {
   board = board.toLowerCase();
   if (!BOARDS.includes(board)) board = "general";
   currentBoard = board;
-  document.getElementById("boardTitle").innerText = board.charAt(0).toUpperCase() + board.slice(1);
+  const titleEl = document.getElementById("boardTitle");
+  if (titleEl) titleEl.innerText = board.charAt(0).toUpperCase() + board.slice(1);
   loadPosts();
 }
 window.switchBoard = switchBoard;
@@ -236,8 +249,9 @@ function setupRealtime() {
     .subscribe();
 }
 
+// Initialization
 setupRealtime();
 loadPosts();
 
-// Keeps timestamps fresh every 30 seconds without querying the DB
+// Refresh the relative timestamps (e.g., "5m ago") every 30 seconds
 setInterval(refreshUI, 30000);
