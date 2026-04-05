@@ -1,8 +1,7 @@
-
 body {
     background: #f0e0d6;
     color: #800000;
-    font-family: arial,helvetica,sans-serif;
+    font-family: arial, helvetica, sans-serif;
     font-size: 10pt;
     margin: 0; padding: 10px;
 }
@@ -14,55 +13,65 @@ body {
 h1 { text-align: center; color: #af0a0f; margin: 5px; }
 hr { border: 0; border-top: 1px solid #d9bfb7; margin: 10px 0; }
 
-.postForm {
+/* --- NEW SIMPLIFIED POST FORM --- */
+#postFormContainer {
+    text-align: center; /* Centers the textarea and button */
     margin: 20px auto;
-    border-collapse: collapse;
-    background-color: #f0e0d6; /* Matches body */
-}
-
-.formLabel {
-    background-color: #eeaa88; /* The classic orange-ish header */
-    color: #800000;
-    font-weight: bold;
-    padding: 5px 10px;
-    border: 1px solid #d9bfb7;
-    text-align: right;
-    width: 80px;
-}
-
-.postForm td {
-    border: 1px solid #d9bfb7;
-    padding: 2px;
+    background-color: #d6bad0; /* Classic reply-box purple */
+    padding: 15px;
+    border: 1px solid #b7c5d9;
+    display: block;
+    max-width: 450px;
 }
 
 textarea {
-    display: block;
-    width: 300px;
+    width: 100%;
+    max-width: 400px;
     height: 100px;
-    margin: 0;
+    margin-bottom: 8px;
     border: 1px solid #a9a9a9;
     font-family: monospace;
+    padding: 5px;
+    box-sizing: border-box;
 }
 
-/* POSTS & REPLIES */
+/* --- POSTS & REPLIES --- */
 .post { margin: 4px 0; border: 1px solid #b7c5d9; padding: 5px 10px; }
-.op { background: transparent; border: none; display: block; border-bottom: 1px solid #d9bfb7; padding-bottom: 20px; }
-.reply { background: #d6bad0; display: table; border-left: none; border-top: none; }
+
+.op { 
+    background: transparent; 
+    border: none; 
+    display: block; 
+    border-bottom: 1px solid #d9bfb7; 
+    padding-bottom: 20px; 
+    margin-bottom: 20px;
+}
+
+.reply { 
+    background: #d6bad0; 
+    display: table; 
+    border-left: none; 
+    border-top: none; 
+    box-shadow: 2px 2px 0 rgba(0,0,0,0.1);
+}
+
 .reply-section { margin-left: 30px; }
 
-/* CATALOG STYLING */
+/* --- CATALOG STYLING --- */
 .catalog-item { 
     display: block; 
     cursor: pointer; 
     background: #d6bad0; 
     width: 100%; 
     box-sizing: border-box;
+    margin-bottom: 5px;
 }
-.catalog-item:hover { background: #f5e6dc; }
-.subject { font-weight: bold; color: #0f0c5d; font-size: 11pt; }
-.meta { font-size: 9pt; color: #444; margin-top: 5px; }
 
-/* TEXT ELEMENTS */
+.catalog-item:hover { background: #f5e6dc; }
+.subject { font-weight: bold; color: #0f0c5d; font-size: 11pt; padding: 5px; }
+.meta { font-size: 9pt; color: #444; margin-top: 5px; padding: 0 5px 5px 5px; }
+
+/* --- TEXT ELEMENTS --- */
 .post-header { font-size: 9pt; color: #117743; }
 .name { font-weight: bold; }
 .ts { color: #333; }
@@ -71,4 +80,7 @@ textarea {
 blockquote { color: #789922; margin: 0; padding: 0; }
 
 .modTag { color: red; font-weight: bold; font-size: 8pt; }
-.backBtn { font-weight: bold; text-decoration: none; color: #34345c; }
+.backBtn { font-weight: bold; text-decoration: none; color: #34345c; display: inline-block; margin-bottom: 10px; }
+
+/* Helper for the Reply Button inside threads */
+.replyBtn { font-size: 8pt; margin-left: 10px; cursor: pointer; }
