@@ -1,14 +1,25 @@
-// setupSupabase
+// =======================
+// 🔧 SUPABASE SETUP
+// =======================
 const SUPABASE_URL = "https://lqisypgwjzvtxslmsuwc.supabase.co";
 const SUPABASE_KEY = "sb_publishable_t0odKZzr5g98bTl1O5yuMw_R86mrL7W";
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// =======================
+// 🛡️ MODERATOR IDS
+// =======================
 const MODS = ["9878da6b-7e46-4add-b781-daf0aab15672"];
 
+// =======================
+// 🧠 STATE
+// =======================
 const BOARDS = ["general", "tech", "gaming", "random"];
 let currentBoard = "general";
 
+// =======================
+// 👤 USER
+// =======================
 function getUserId() {
   let id = localStorage.getItem("userId");
   if (!id) {
@@ -27,6 +38,9 @@ function getAnonName() {
   return name;
 }
 
+// =======================
+// ⏱️ TIME FIX
+// =======================
 function timeAgo(ts) {
   if (!ts) return "just now";
 
@@ -44,6 +58,9 @@ function timeAgo(ts) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
+// =======================
+// ➕ ADD POST
+// =======================
 async function addPost() {
   const input = document.getElementById("postInput");
   if (!input.value.trim()) return;
@@ -59,6 +76,9 @@ async function addPost() {
 }
 window.addPost = addPost;
 
+// =======================
+// 💬 ADD REPLY
+// =======================
 async function addReply(parentId) {
   const input = document.getElementById("replyInput-" + parentId);
   if (!input.value.trim()) return;
@@ -74,6 +94,10 @@ async function addReply(parentId) {
   input.value = "";
 }
 window.addReply = addReply;
+
+// =======================
+// 👍 UPVOTE
+// =======================
 async function upvote(postId) {
   const userId = getUserId();
 
@@ -87,6 +111,10 @@ async function upvote(postId) {
   await db.rpc("increment_upvotes", { row_id: postId });
 }
 window.upvote = upvote;
+
+// =======================
+// 💬 QUOTE
+// =======================
 function quotePost(postId) {
   const posts = window.__postsCache || [];
 
@@ -115,6 +143,10 @@ function quotePost(postId) {
   input.focus();
 }
 window.quotePost = quotePost;
+
+// =======================
+// 🌳 BUILD TREE
+// =======================
 function buildTree(posts = []) {
   const map = {};
   const roots = [];
@@ -135,23 +167,28 @@ function buildTree(posts = []) {
   return roots;
 }
 
+// =======================
+// 🖼️ RENDER (FULL FIX)
+// =======================
 function renderPosts(posts) {
   window.__postsCache = posts || [];
 
   const container = document.getElementById("posts");
   container.innerHTML = "";
 
-  function render(post, parent, depth = 0) {
+  const tree = buildTree(posts);
+
+  function renderFlat(post, depth = 0) {
     const div = document.createElement("div");
 
     const isMod = MODS.includes(post.user_id);
     const isYou = post.user_id === getUserId();
 
-    const maxIndent = 4;
+    const maxIndent = 5;
     const indent = Math.min(depth, maxIndent);
 
     div.className = "post";
-    div.style.marginLeft = post.parent_id ? `${indent * 20}px` : "0px";
+    div.style.marginLeft = `${indent * 20}px`;
 
     div.style.border = isYou
       ? "2px solid #4a5a9c"
@@ -159,7 +196,11 @@ function renderPosts(posts) {
 
     const formatted = (post.text || "")
       .split("\n")
-      .map(line => line.startsWith(">") ? `<blockquote>${line}</blockquote>` : line)
+      .map(line =>
+        line.startsWith(">")
+          ? `<blockquote>${line}</blockquote>`
+          : line
+      )
       .join("<br>");
 
     div.innerHTML = `
@@ -182,22 +223,27 @@ function renderPosts(posts) {
       </div>
     `;
 
-    parent.appendChild(div);
+    // 🔥 KEY FIX: always append to main container (NOT nested)
+    container.appendChild(div);
 
-    (post.replies || []).forEach(r => render(r, div, depth + 1));
+    (post.replies || []).forEach(r => renderFlat(r, depth + 1));
   }
 
-  buildTree(posts)
-    .reverse()
-    .forEach(p => render(p, container));
+  tree.reverse().forEach(p => renderFlat(p));
 }
 
+// =======================
+// 🔽 TOGGLE REPLY
+// =======================
 function toggleReplyBox(id) {
   const el = document.getElementById("replyBox-" + id);
   el.style.display = el.style.display === "none" ? "block" : "none";
 }
 window.toggleReplyBox = toggleReplyBox;
 
+// =======================
+// 🔀 SWITCH BOARD
+// =======================
 function switchBoard(board) {
   board = board.toLowerCase();
   if (!BOARDS.includes(board)) board = "general";
@@ -210,6 +256,10 @@ function switchBoard(board) {
   loadPosts();
 }
 window.switchBoard = switchBoard;
+
+// =======================
+// 📥 LOAD POSTS
+// =======================
 async function loadPosts() {
   const { data, error } = await db
     .from("posts")
@@ -221,6 +271,10 @@ async function loadPosts() {
 
   renderPosts(data || []);
 }
+
+// =======================
+// 🔔 REALTIME
+// =======================
 function setupRealtime() {
   db.channel("posts-channel")
     .on(
@@ -231,9 +285,11 @@ function setupRealtime() {
     .subscribe();
 }
 
-
+// =======================
+// 🚀 INIT
+// =======================
 setupRealtime();
 loadPosts();
 
-
+// 🔄 keep timestamps fresh
 setInterval(loadPosts, 30000);
