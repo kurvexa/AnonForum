@@ -7,7 +7,7 @@ const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const MODS = ["9878da6b-7e46-4add-b781-daf0aab15672"];
 
 // =======================
-// 🧠 STATE
+// 🧠 STATE 
 // =======================
 let currentBoard = "general";
 let cachedPosts = [];
