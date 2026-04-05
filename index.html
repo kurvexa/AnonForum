@@ -19,23 +19,11 @@
     <h1 id="boardTitle">General</h1>
     <hr>
 
-<div id="postFormContainer">
-    <table class="postForm">
-        <tr>
-            <td class="formLabel">Comment</td>
-            <td>
-                <textarea id="postInput" placeholder="Start a new topic..."></textarea>
-            </td>
-        </tr>
-        <tr>
-            <td class="formLabel">Submit</td>
-            <td>
-                <button onclick="addPost()">Post New Topic</button>
-                <span style="font-size: 8pt; color: #555;"> Hey pal, don't say anything too bad! </span>
-            </td>
-        </tr>
-    </table>
-</div>
+    <div id="postFormContainer">
+        <textarea id="postInput" placeholder="Start a new topic..."></textarea><br>
+        <button onclick="addPost()">Post New Topic</button>
+        <span style="font-size: 8pt; color: #555; margin-left:10px;">Hey pal, don't say anything too bad!</span>
+    </div>
 
     <hr>
     <div id="posts"></div>
