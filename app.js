@@ -11,7 +11,7 @@ const MODS = ["9878da6b-7e46-4add-b781-daf0aab15672"];
 // =======================
 let currentBoard = "general";
 let cachedPosts = [];
-
+let normalIDs = []; 
 // =======================
 // ⏱️ UTILS
 // =======================
@@ -44,19 +44,24 @@ function render() {
 
     const params = new URLSearchParams(window.location.search);
     const threadId = params.get("thread");
+    const myId = getUserId();
+    const visiblePosts = cachedPosts.filter(p => {
+        const isBanned = normalIDs.includes(p.user_id);
+        const isMine = p.user_id === myId;
+        return !isBanned || isMine; /
+    });
 
     if (threadId) {
         // --- THREAD VIEW ---
-        formContainer.style.display = "none"; // Hide "New Topic" box
-        const op = cachedPosts.find(p => p.id == threadId);
-        const replies = cachedPosts.filter(p => p.parent_id == threadId);
+        formContainer.style.display = "none";
+        const op = visiblePosts.find(p => p.id == threadId);
+        const replies = visiblePosts.filter(p => p.parent_id == threadId);
 
         if (!op) {
-            container.innerHTML = "Thread not found. <a href='index.html'>Go Back</a>";
+            container.innerHTML = "Thread not found or removed. <a href='index.html'>Go Back</a>";
             return;
         }
 
-        // Back link
         const back = document.createElement("a");
         back.href = "index.html";
         back.innerText = "[ Back to Board ]";
@@ -64,10 +69,8 @@ function render() {
         container.appendChild(back);
         container.appendChild(document.createElement("hr"));
 
-        // Draw OP
         renderSinglePost(op, container, true);
 
-        // Draw Replies
         const replyWrap = document.createElement("div");
         replyWrap.className = "reply-section";
         replies.reverse().forEach(r => renderSinglePost(r, replyWrap, false));
@@ -75,11 +78,11 @@ function render() {
 
     } else {
         // --- CATALOG VIEW ---
-        formContainer.style.display = "block"; // Show "New Topic" box
-        const topics = cachedPosts.filter(p => !p.parent_id);
+        formContainer.style.display = "block";
+        const topics = visiblePosts.filter(p => !p.parent_id);
         
         topics.forEach(t => {
-            const replyCount = cachedPosts.filter(p => p.parent_id === t.id).length;
+            const replyCount = visiblePosts.filter(p => p.parent_id === t.id).length;
             const div = document.createElement("div");
             div.className = "catalog-item post";
             div.onclick = () => { window.location.search = `?thread=${t.id}`; };
@@ -99,7 +102,10 @@ function renderSinglePost(post, container, isOP) {
     const div = document.createElement("div");
     div.className = isOP ? "post op" : "post reply";
     const isMod = MODS.includes(post.user_id);
+    const myId = getUserId();
     
+    const ghostMark = (normalIDs.includes(post.user_id) && post.user_id === myId) ? ' 👻' : '';
+
     const formatted = (post.text || "")
         .split("\n")
         .map(line => line.startsWith(">") ? `<blockquote>${line}</blockquote>` : line)
@@ -107,11 +113,12 @@ function renderSinglePost(post, container, isOP) {
 
     div.innerHTML = `
         <div class="post-header">
-            <span class="name">${post.author}</span> 
+            <span class="name">${post.author}${ghostMark}</span> 
             ${isMod ? '<span class="modTag"># MOD</span>' : ''}
             <span class="ts">${timeAgo(post.created_at)}</span>
             <span class="num">No.${post.id}</span>
             ${isOP ? `<button class="replyBtn" onclick="toggleReplyBox(${post.id})">Post Reply</button>` : ''}
+            ${MODS.includes(myId) ? `<button onclick="event.stopPropagation(); banUser('${post.user_id}')" style="font-size:8px; opacity:0.3;">[X]</button>` : ''}
         </div>
         <div class="post-body">${formatted}</div>
         <div id="replyBox-${post.id}" class="inline-reply" style="display:none; margin-top:10px;">
@@ -134,7 +141,6 @@ async function addPost() {
         author: getAnonName(),
         user_id: getUserId(),
         board: currentBoard
-        // parent_id remains null -> This makes it a Topic
     });
 
     input.value = "";
@@ -149,10 +155,17 @@ async function addReply(parentId) {
         text: input.value,
         author: getAnonName(),
         user_id: getUserId(),
-        parent_id: parentId, // Links it to the OP
+        parent_id: parentId,
         board: currentBoard
     });
 
+    loadPosts();
+}
+
+// NEW: Quick ban function for you in the console or via the [X] button
+async function banUser(targetId) {
+    if (!confirm("Shadow ban this ID?")) return;
+    await db.from("shadow_bans").insert({ user_id: targetId });
     loadPosts();
 }
 
@@ -160,6 +173,11 @@ async function addReply(parentId) {
 // 🛠️ HELPERS
 // =======================
 async function loadPosts() {
+    // 1. Load Shadow Bans first
+    const { data: banData } = await db.from("shadow_bans").select("user_id");
+    normalIDs = (banData || []).map(b => b.user_id);
+
+    // 2. Load Posts
     const { data, error } = await db.from("posts")
         .select("*")
         .eq("board", currentBoard)
@@ -174,7 +192,7 @@ async function loadPosts() {
 function switchBoard(board) {
     currentBoard = board;
     document.getElementById("boardTitle").innerText = board.toUpperCase();
-    window.history.pushState({}, "", window.location.pathname); // Go home on board switch
+    window.history.pushState({}, "", window.location.pathname);
     loadPosts();
 }
 
@@ -183,10 +201,10 @@ function toggleReplyBox(id) {
     el.style.display = el.style.display === "none" ? "block" : "none";
 }
 
-// Global scope bindings
 window.addPost = addPost;
 window.addReply = addReply;
 window.switchBoard = switchBoard;
 window.toggleReplyBox = toggleReplyBox;
+window.banUser = banUser;
 
 loadPosts();
