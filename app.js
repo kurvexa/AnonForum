@@ -12,6 +12,7 @@ const MODS = ["9878da6b-7e46-4add-b781-daf0aab15672"];
 let currentBoard = "general";
 let cachedPosts = [];
 let shadowBannedIds = [];
+let realtimeChannel = null;
 
 // =======================
 // ⏱️ UTILS
@@ -42,7 +43,6 @@ function render() {
     const container = document.getElementById("posts");
     const formContainer = document.getElementById("postFormContainer");
     if (!container) return;
-    container.innerHTML = "";
 
     const params = new URLSearchParams(window.location.search);
     const threadId = params.get("thread");
@@ -55,7 +55,19 @@ function render() {
     });
 
     if (threadId) {
+        // --- THREAD VIEW ---
         formContainer.style.display = "none";
+        
+        // Ensure the skeleton exists if it's the first render
+        if (!document.getElementById("thread-wrapper")) {
+            container.innerHTML = `
+                <a href="index.html" class="backBtn">[ Back to Board ]</a>
+                <hr>
+                <div id="thread-wrapper"></div>
+                <div id="replies-wrapper" class="reply-section"></div>
+            `;
+        }
+
         const op = visiblePosts.find(p => p.id == threadId);
         const replies = visiblePosts.filter(p => p.parent_id == threadId);
 
@@ -64,23 +76,22 @@ function render() {
             return;
         }
 
-        const back = document.createElement("a");
-        back.href = "index.html";
-        back.innerText = "[ Back to Board ]";
-        back.className = "backBtn";
-        container.appendChild(back);
-        container.appendChild(document.createElement("hr"));
+        // Render OP if not already there
+        renderSinglePost(op, document.getElementById("thread-wrapper"), true);
 
-        renderSinglePost(op, container, true);
-
-        const replyWrap = document.createElement("div");
-        replyWrap.className = "reply-section";
-        replies.reverse().forEach(r => renderSinglePost(r, replyWrap, false));
-        container.appendChild(replyWrap);
+        // Render Replies (we reverse to show newest at bottom for thread view)
+        const replyWrap = document.getElementById("replies-wrapper");
+        replies.sort((a,b) => new Date(a.created_at) - new Date(b.created_at)).forEach(r => {
+            renderSinglePost(r, replyWrap, false);
+        });
 
     } else {
+        // --- CATALOG/BOARD VIEW ---
         formContainer.style.display = "block";
         const topics = visiblePosts.filter(p => !p.parent_id);
+        
+        // In Catalog view, it's safer to clear it since it's just links
+        container.innerHTML = ""; 
         
         topics.forEach(t => {
             const replyCount = visiblePosts.filter(p => p.parent_id === t.id).length;
@@ -100,7 +111,11 @@ function render() {
 }
 
 function renderSinglePost(post, container, isOP) {
+    // Check if post already exists on the page to avoid duplicates/flicker
+    if (document.getElementById(`post-${post.id}`)) return;
+
     const div = document.createElement("div");
+    div.id = `post-${post.id}`; // Give it a unique ID
     div.className = isOP ? "post op" : "post reply";
     const isMod = MODS.includes(post.user_id);
     const myId = getUserId();
@@ -129,6 +144,26 @@ function renderSinglePost(post, container, isOP) {
 }
 
 // =======================
+// 📡 REALTIME SYSTEM
+// =======================
+function initRealtime() {
+    if (realtimeChannel) db.removeChannel(realtimeChannel);
+
+    realtimeChannel = db.channel('public:posts')
+        .on('postgres_changes', { 
+            event: 'INSERT', 
+            schema: 'public', 
+            table: 'posts',
+            filter: `board=eq.${currentBoard}` 
+        }, (payload) => {
+            // Add the new post to cache and re-render
+            cachedPosts.push(payload.new);
+            render();
+        })
+        .subscribe();
+}
+
+// =======================
 // ➕ ACTIONS
 // =======================
 async function addPost() {
@@ -143,7 +178,7 @@ async function addPost() {
     });
 
     input.value = "";
-    loadPosts();
+    // No need to call loadPosts() manually, Realtime will catch it!
 }
 
 async function addReply(parentId) {
@@ -158,13 +193,14 @@ async function addReply(parentId) {
         board: currentBoard
     });
 
-    loadPosts();
+    input.value = "";
+    toggleReplyBox(parentId);
 }
 
 async function banUser(targetId) {
     if (!confirm("Shadow ban this ID?")) return;
     await db.from("shadow_bans").insert({ user_id: targetId });
-    loadPosts();
+    loadPosts(); 
 }
 
 // =======================
@@ -187,9 +223,16 @@ async function loadPosts() {
 
 function switchBoard(board) {
     currentBoard = board;
-    document.getElementById("boardTitle").innerText = board.toUpperCase();
+    const titleEl = document.getElementById("boardTitle");
+    if (titleEl) titleEl.innerText = board.toUpperCase();
+    
+    // Reset state for new board
+    cachedPosts = [];
+    document.getElementById("posts").innerHTML = "";
+    
     window.history.pushState({}, "", window.location.pathname);
     loadPosts();
+    initRealtime(); // Re-subscribe to the new board filter
 }
 
 function toggleReplyBox(id) {
@@ -204,4 +247,6 @@ window.switchBoard = switchBoard;
 window.toggleReplyBox = toggleReplyBox;
 window.banUser = banUser;
 
+// Initial start
 loadPosts();
+initRealtime();
