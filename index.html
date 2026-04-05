@@ -1,39 +1,39 @@
 <!DOCTYPE html>
 <html lang="en">
-<head> 
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Anon Forum</title>
-  <link rel="stylesheet" href="style.css">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anon Forum</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div id="boardBar">
-  [ <button onclick="switchBoard('general')">general</button> / 
-  <button onclick="switchBoard('tech')">tech</button> / 
-  <button onclick="switchBoard('gaming')">gaming</button> / 
-  <button onclick="switchBoard('random')">random</button> ]
+    [ <button onclick="switchBoard('general')">general</button> / 
+    <button onclick="switchBoard('tech')">tech</button> / 
+    <button onclick="switchBoard('gaming')">gaming</button> / 
+    <button onclick="switchBoard('random')">random</button> ]
 </div>
 
 <div id="container">
-  <h1 id="boardTitle">General</h1>
-  <hr>
+    <h1 id="boardTitle">General</h1>
+    <hr>
 
-  <div id="postFormContainer">
-    <table class="postForm">
-      <tr>
-        <td class="formLabel">Comment</td>
-        <td><textarea id="postInput" placeholder="Write a post..."></textarea></td>
-      </tr>
-      <tr>
-        <td></td>
-        <td><button id="submitBtn" onclick="addPost()">Post</button></td>
-      </tr>
-    </table>
-  </div>
+    <div id="postFormContainer">
+        <table class="postForm">
+            <tr>
+                <td class="formLabel">Comment</td>
+                <td><textarea id="postInput" placeholder="Start a new topic..."></textarea></td>
+            </tr>
+            <tr>
+                <td></td>
+                <td><button onclick="addPost()">Post New Topic</button></td>
+            </tr>
+        </table>
+    </div>
 
-  <hr>
-  <div id="posts"></div>
+    <hr>
+    <div id="posts"></div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
