@@ -11,7 +11,8 @@ const MODS = ["9878da6b-7e46-4add-b781-daf0aab15672"];
 // =======================
 let currentBoard = "general";
 let cachedPosts = [];
-let normalIDs = []; 
+let shadowBannedIds = [];
+
 // =======================
 // ⏱️ UTILS
 // =======================
@@ -40,25 +41,26 @@ function timeAgo(ts) {
 function render() {
     const container = document.getElementById("posts");
     const formContainer = document.getElementById("postFormContainer");
+    if (!container) return;
     container.innerHTML = "";
 
     const params = new URLSearchParams(window.location.search);
     const threadId = params.get("thread");
     const myId = getUserId();
+
     const visiblePosts = cachedPosts.filter(p => {
-        const isBanned = normalIDs.includes(p.user_id);
+        const isBanned = shadowBannedIds.includes(p.user_id);
         const isMine = p.user_id === myId;
-        return !isBanned || isMine; /
+        return !isBanned || isMine;
     });
 
     if (threadId) {
-        // --- THREAD VIEW ---
         formContainer.style.display = "none";
         const op = visiblePosts.find(p => p.id == threadId);
         const replies = visiblePosts.filter(p => p.parent_id == threadId);
 
         if (!op) {
-            container.innerHTML = "Thread not found or removed. <a href='index.html'>Go Back</a>";
+            container.innerHTML = "Thread not found. <a href='index.html'>Go Back</a>";
             return;
         }
 
@@ -77,7 +79,6 @@ function render() {
         container.appendChild(replyWrap);
 
     } else {
-        // --- CATALOG VIEW ---
         formContainer.style.display = "block";
         const topics = visiblePosts.filter(p => !p.parent_id);
         
@@ -87,7 +88,7 @@ function render() {
             div.className = "catalog-item post";
             div.onclick = () => { window.location.search = `?thread=${t.id}`; };
             div.innerHTML = `
-                <span class="subject">${t.text.substring(0, 75)}${t.text.length > 75 ? '...' : ''}</span>
+                <span class="subject">${t.text.substring(0, 75)}</span>
                 <div class="meta">
                     <b>${t.author}</b> • ${timeAgo(t.created_at)} • 
                     <span style="color:#706b5e;">Replies: ${replyCount}</span>
@@ -104,8 +105,6 @@ function renderSinglePost(post, container, isOP) {
     const isMod = MODS.includes(post.user_id);
     const myId = getUserId();
     
-    const ghostMark = (normalIDs.includes(post.user_id) && post.user_id === myId) ? ' 👻' : '';
-
     const formatted = (post.text || "")
         .split("\n")
         .map(line => line.startsWith(">") ? `<blockquote>${line}</blockquote>` : line)
@@ -113,17 +112,17 @@ function renderSinglePost(post, container, isOP) {
 
     div.innerHTML = `
         <div class="post-header">
-            <span class="name">${post.author}${ghostMark}</span> 
+            <span class="name">${post.author}</span> 
             ${isMod ? '<span class="modTag"># MOD</span>' : ''}
             <span class="ts">${timeAgo(post.created_at)}</span>
             <span class="num">No.${post.id}</span>
-            ${isOP ? `<button class="replyBtn" onclick="toggleReplyBox(${post.id})">Post Reply</button>` : ''}
+            ${isOP ? `<button class="replyBtn" onclick="toggleReplyBox(${post.id})">Reply</button>` : ''}
             ${MODS.includes(myId) ? `<button onclick="event.stopPropagation(); banUser('${post.user_id}')" style="font-size:8px; opacity:0.3;">[X]</button>` : ''}
         </div>
         <div class="post-body">${formatted}</div>
         <div id="replyBox-${post.id}" class="inline-reply" style="display:none; margin-top:10px;">
-            <textarea id="replyInput-${post.id}" placeholder="Type a reply..."></textarea><br>
-            <button onclick="addReply(${post.id})">Submit Reply</button>
+            <textarea id="replyInput-${post.id}"></textarea><br>
+            <button onclick="addReply(${post.id})">Submit</button>
         </div>
     `;
     container.appendChild(div);
@@ -162,7 +161,6 @@ async function addReply(parentId) {
     loadPosts();
 }
 
-// NEW: Quick ban function for you in the console or via the [X] button
 async function banUser(targetId) {
     if (!confirm("Shadow ban this ID?")) return;
     await db.from("shadow_bans").insert({ user_id: targetId });
@@ -173,11 +171,9 @@ async function banUser(targetId) {
 // 🛠️ HELPERS
 // =======================
 async function loadPosts() {
-    // 1. Load Shadow Bans first
     const { data: banData } = await db.from("shadow_bans").select("user_id");
-    normalIDs = (banData || []).map(b => b.user_id);
+    shadowBannedIds = (banData || []).map(b => b.user_id);
 
-    // 2. Load Posts
     const { data, error } = await db.from("posts")
         .select("*")
         .eq("board", currentBoard)
@@ -201,6 +197,7 @@ function toggleReplyBox(id) {
     el.style.display = el.style.display === "none" ? "block" : "none";
 }
 
+// Global scope
 window.addPost = addPost;
 window.addReply = addReply;
 window.switchBoard = switchBoard;
