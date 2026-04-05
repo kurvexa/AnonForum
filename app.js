@@ -12,13 +12,14 @@ const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const MODS = ["9878da6b-7e46-4add-b781-daf0aab15672"];
 
 // =======================
-// 🧠 STATE
+// 🧠 STATE & CACHE
 // =======================
 const BOARDS = ["general", "tech", "gaming", "random"];
 let currentBoard = "general";
+let cachedPosts = []; // Stores posts locally to refresh timestamps without DB calls
 
 // =======================
-// 👤 USER
+// 👤 USER UTILS
 // =======================
 function getUserId() {
   let id = localStorage.getItem("userId");
@@ -39,19 +40,21 @@ function getAnonName() {
 }
 
 // =======================
-// ⏱️ TIME FIX
+// ⏱️ TIME FIX (Parsed for ISO 8601)
 // =======================
 function timeAgo(ts) {
   if (!ts) return "just now";
 
-  const past = new Date(ts.replace(" ", "T"));
+  // Standard ISO parsing
+  const past = new Date(ts);
   const now = new Date();
 
-  if (isNaN(past.getTime())) return "just now";
+  if (isNaN(past.getTime())) return "Timestamp ISO parsing failed. Please contact a moderator to notify them of this issue.";
 
-  const diff = Math.floor((now - past) / 1000);
+  // Math.max(0, ...) prevents "just now" glitches if client clock is slow
+  const diff = Math.max(0, Math.floor((now - past) / 1000));
 
-  if (diff < 0) return "just now";
+  if (diff < 30) return `just now`;
   if (diff < 60) return `${diff}s ago`;
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
@@ -59,7 +62,7 @@ function timeAgo(ts) {
 }
 
 // =======================
-// ➕ ADD POST
+// ➕ ACTIONS
 // =======================
 async function addPost() {
   const input = document.getElementById("postInput");
@@ -76,9 +79,6 @@ async function addPost() {
 }
 window.addPost = addPost;
 
-// =======================
-// 💬 ADD REPLY
-// =======================
 async function addReply(parentId) {
   const input = document.getElementById("replyInput-" + parentId);
   if (!input.value.trim()) return;
@@ -95,57 +95,20 @@ async function addReply(parentId) {
 }
 window.addReply = addReply;
 
-// =======================
-// 👍 UPVOTE
-// =======================
 async function upvote(postId) {
   const userId = getUserId();
-
   const { error } = await db.from("votes").insert({
     post_id: postId,
     user_id: userId
   });
 
   if (error && error.code !== "23505") return;
-
   await db.rpc("increment_upvotes", { row_id: postId });
 }
 window.upvote = upvote;
 
 // =======================
-// 💬 QUOTE
-// =======================
-function quotePost(postId) {
-  const posts = window.__postsCache || [];
-
-  function find(list) {
-    for (let p of list) {
-      if (p.id === postId) return p;
-      if (p.replies) {
-        const found = find(p.replies);
-        if (found) return found;
-      }
-    }
-    return null;
-  }
-
-  const post = find(posts);
-  if (!post) return;
-
-  const input = document.getElementById("postInput");
-
-  const quoted = (post.text || "")
-    .split("\n")
-    .map(line => "> " + line)
-    .join("\n");
-
-  input.value += `\n${post.author}:\n${quoted}\n\n`;
-  input.focus();
-}
-window.quotePost = quotePost;
-
-// =======================
-// 🌳 BUILD TREE
+// 🌳 DATA PROCESSING
 // =======================
 function buildTree(posts = []) {
   const map = {};
@@ -168,64 +131,44 @@ function buildTree(posts = []) {
 }
 
 // =======================
-// 🖼️ RENDER (FULL FIX)
+// 🖼️ RENDER
 // =======================
 function renderPosts(posts) {
-  window.__postsCache = posts || [];
-
   const container = document.getElementById("posts");
+  if (!container) return;
+  
   container.innerHTML = "";
-
-  const tree = buildTree(posts);
+  const tree = buildTree(JSON.parse(JSON.stringify(posts))); // Use a copy to avoid mutation
 
   function renderFlat(post, depth = 0) {
     const div = document.createElement("div");
-
     const isMod = MODS.includes(post.user_id);
     const isYou = post.user_id === getUserId();
-
-    const maxIndent = 5;
-    const indent = Math.min(depth, maxIndent);
+    const indent = Math.min(depth, 5);
 
     div.className = "post";
     div.style.marginLeft = `${indent * 20}px`;
-
-    div.style.border = isYou
-      ? "2px solid #4a5a9c"
-      : "1px solid #ccd0d5";
+    div.style.border = isYou ? "2px solid #4a5a9c" : "1px solid #ccd0d5";
 
     const formatted = (post.text || "")
       .split("\n")
-      .map(line =>
-        line.startsWith(">")
-          ? `<blockquote>${line}</blockquote>`
-          : line
-      )
+      .map(line => line.startsWith(">") ? `<blockquote>${line}</blockquote>` : line)
       .join("<br>");
 
     div.innerHTML = `
-      <b>
-        ${post.author}
-        ${isMod ? '<span class="modTag">MODERATOR</span>' : ''}
-      </b>
+      <b>${post.author} ${isMod ? '<span class="modTag">MODERATOR</span>' : ''}</b>
       • ${timeAgo(post.created_at)}
-
       <p>${formatted}</p>
-
-      ${post.upvotes || 0}
+      <span>${post.upvotes || 0}</span>
       <button onclick="upvote(${post.id})">Upvote</button>
       <button onclick="quotePost(${post.id})">Quote</button>
       <button onclick="toggleReplyBox(${post.id})">Reply</button>
-
-      <div id="replyBox-${post.id}" style="display:none;">
-        <textarea id="replyInput-${post.id}"></textarea>
+      <div id="replyBox-${post.id}" style="display:none; margin-top:10px;">
+        <textarea id="replyInput-${post.id}"></textarea><br>
         <button onclick="addReply(${post.id})">Send</button>
       </div>
     `;
-
-    // 🔥 KEY FIX: always append to main container (NOT nested)
     container.appendChild(div);
-
     (post.replies || []).forEach(r => renderFlat(r, depth + 1));
   }
 
@@ -233,32 +176,7 @@ function renderPosts(posts) {
 }
 
 // =======================
-// 🔽 TOGGLE REPLY
-// =======================
-function toggleReplyBox(id) {
-  const el = document.getElementById("replyBox-" + id);
-  el.style.display = el.style.display === "none" ? "block" : "none";
-}
-window.toggleReplyBox = toggleReplyBox;
-
-// =======================
-// 🔀 SWITCH BOARD
-// =======================
-function switchBoard(board) {
-  board = board.toLowerCase();
-  if (!BOARDS.includes(board)) board = "general";
-
-  currentBoard = board;
-
-  document.getElementById("boardTitle").innerText =
-    board.charAt(0).toUpperCase() + board.slice(1);
-
-  loadPosts();
-}
-window.switchBoard = switchBoard;
-
-// =======================
-// 📥 LOAD POSTS
+// 📥 DATA LOADING
 // =======================
 async function loadPosts() {
   const { data, error } = await db
@@ -267,29 +185,59 @@ async function loadPosts() {
     .eq("board", currentBoard)
     .order("created_at", { ascending: false });
 
-  if (error) return console.error(error);
+  if (error) return console.error("Fetch error:", error);
 
-  renderPosts(data || []);
+  cachedPosts = data || [];
+  renderPosts(cachedPosts);
+}
+
+// Re-renders the existing data to update the "X minutes ago" text
+function refreshUI() {
+  if (cachedPosts.length > 0) {
+    renderPosts(cachedPosts);
+  }
 }
 
 // =======================
-// 🔔 REALTIME
+// 🛠️ UI HELPERS
+// =======================
+function toggleReplyBox(id) {
+  const el = document.getElementById("replyBox-" + id);
+  el.style.display = el.style.display === "none" ? "block" : "none";
+}
+window.toggleReplyBox = toggleReplyBox;
+
+function quotePost(postId) {
+  const post = cachedPosts.find(p => p.id === postId);
+  if (!post) return;
+
+  const input = document.getElementById("postInput");
+  const quoted = (post.text || "").split("\n").map(line => "> " + line).join("\n");
+  input.value += `\n${post.author}:\n${quoted}\n\n`;
+  input.focus();
+}
+window.quotePost = quotePost;
+
+function switchBoard(board) {
+  board = board.toLowerCase();
+  if (!BOARDS.includes(board)) board = "general";
+  currentBoard = board;
+  document.getElementById("boardTitle").innerText = board.charAt(0).toUpperCase() + board.slice(1);
+  loadPosts();
+}
+window.switchBoard = switchBoard;
+
+// =======================
+// 🔔 REALTIME & INIT
 // =======================
 function setupRealtime() {
   db.channel("posts-channel")
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "posts" },
-      () => loadPosts()
-    )
+    .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, () => loadPosts())
     .subscribe();
 }
 
-// =======================
-// 🚀 INIT
-// =======================
 setupRealtime();
 loadPosts();
 
-// 🔄 keep timestamps fresh
-setInterval(loadPosts, 30000);
+// Keeps timestamps fresh every 30 seconds without querying the DB
+setInterval(refreshUI, 30000);
