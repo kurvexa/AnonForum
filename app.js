@@ -1,25 +1,14 @@
-// =======================
-// 🔧 SUPABASE SETUP
-// =======================
+// setupSupabase
 const SUPABASE_URL = "https://lqisypgwjzvtxslmsuwc.supabase.co";
 const SUPABASE_KEY = "sb_publishable_t0odKZzr5g98bTl1O5yuMw_R86mrL7W";
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// =======================
-// 🛡️ MODERATOR IDS
-// =======================
 const MODS = ["9878da6b-7e46-4add-b781-daf0aab15672"];
 
-// =======================
-// 🧠 STATE
-// =======================
 const BOARDS = ["general", "tech", "gaming", "random"];
 let currentBoard = "general";
 
-// =======================
-// 👤 USER
-// =======================
 function getUserId() {
   let id = localStorage.getItem("userId");
   if (!id) {
@@ -38,27 +27,23 @@ function getAnonName() {
   return name;
 }
 
-// =======================
-// ⏱️ TIME
-// =======================
 function timeAgo(ts) {
   if (!ts) return "just now";
 
-  const past = new Date(ts);
+  const past = new Date(ts.replace(" ", "T"));
   const now = new Date();
+
   if (isNaN(past.getTime())) return "just now";
 
   const diff = Math.floor((now - past) / 1000);
 
+  if (diff < 0) return "just now";
   if (diff < 60) return `${diff}s ago`;
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-// =======================
-// ➕ ADD POST
-// =======================
 async function addPost() {
   const input = document.getElementById("postInput");
   if (!input.value.trim()) return;
@@ -72,12 +57,8 @@ async function addPost() {
 
   input.value = "";
 }
-
 window.addPost = addPost;
 
-// =======================
-// 💬 ADD REPLY
-// =======================
 async function addReply(parentId) {
   const input = document.getElementById("replyInput-" + parentId);
   if (!input.value.trim()) return;
@@ -92,12 +73,7 @@ async function addReply(parentId) {
 
   input.value = "";
 }
-
 window.addReply = addReply;
-
-// =======================
-// 👍 UPVOTE
-// =======================
 async function upvote(postId) {
   const userId = getUserId();
 
@@ -106,19 +82,11 @@ async function upvote(postId) {
     user_id: userId
   });
 
-  if (error && error.code !== "23505") {
-    console.error(error);
-    return;
-  }
+  if (error && error.code !== "23505") return;
 
   await db.rpc("increment_upvotes", { row_id: postId });
 }
-
 window.upvote = upvote;
-
-// =======================
-// 💬 QUOTE
-// =======================
 function quotePost(postId) {
   const posts = window.__postsCache || [];
 
@@ -146,12 +114,7 @@ function quotePost(postId) {
   input.value += `\n${post.author}:\n${quoted}\n\n`;
   input.focus();
 }
-
 window.quotePost = quotePost;
-
-// =======================
-// 🌳 BUILD TREE
-// =======================
 function buildTree(posts = []) {
   const map = {};
   const roots = [];
@@ -172,21 +135,23 @@ function buildTree(posts = []) {
   return roots;
 }
 
-// =======================
-// 🖼️ RENDER
-// =======================
 function renderPosts(posts) {
   window.__postsCache = posts || [];
 
   const container = document.getElementById("posts");
   container.innerHTML = "";
 
-  function render(post, parent) {
+  function render(post, parent, depth = 0) {
     const div = document.createElement("div");
-    div.className = post.parent_id ? "reply" : "post";
 
     const isMod = MODS.includes(post.user_id);
     const isYou = post.user_id === getUserId();
+
+    const maxIndent = 4;
+    const indent = Math.min(depth, maxIndent);
+
+    div.className = "post";
+    div.style.marginLeft = post.parent_id ? `${indent * 20}px` : "0px";
 
     div.style.border = isYou
       ? "2px solid #4a5a9c"
@@ -219,7 +184,7 @@ function renderPosts(posts) {
 
     parent.appendChild(div);
 
-    (post.replies || []).forEach(r => render(r, div));
+    (post.replies || []).forEach(r => render(r, div, depth + 1));
   }
 
   buildTree(posts)
@@ -227,19 +192,12 @@ function renderPosts(posts) {
     .forEach(p => render(p, container));
 }
 
-// =======================
-// 🔽 REPLY TOGGLE
-// =======================
 function toggleReplyBox(id) {
   const el = document.getElementById("replyBox-" + id);
   el.style.display = el.style.display === "none" ? "block" : "none";
 }
-
 window.toggleReplyBox = toggleReplyBox;
 
-// =======================
-// 🔀 SWITCH BOARD
-// =======================
 function switchBoard(board) {
   board = board.toLowerCase();
   if (!BOARDS.includes(board)) board = "general";
@@ -251,12 +209,7 @@ function switchBoard(board) {
 
   loadPosts();
 }
-
 window.switchBoard = switchBoard;
-
-// =======================
-// 📥 LOAD POSTS
-// =======================
 async function loadPosts() {
   const { data, error } = await db
     .from("posts")
@@ -264,17 +217,10 @@ async function loadPosts() {
     .eq("board", currentBoard)
     .order("created_at", { ascending: false });
 
-  if (error) {
-    console.error(error);
-    return;
-  }
+  if (error) return console.error(error);
 
   renderPosts(data || []);
 }
-
-// =======================
-// 🔔 REALTIME
-// =======================
 function setupRealtime() {
   db.channel("posts-channel")
     .on(
@@ -285,8 +231,9 @@ function setupRealtime() {
     .subscribe();
 }
 
-// =======================
-// 🚀 INIT
-// =======================
+
 setupRealtime();
 loadPosts();
+
+
+setInterval(loadPosts, 30000);
