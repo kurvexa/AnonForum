@@ -50,7 +50,7 @@ function acceptTOS() {
 }
 
 function timeAgo(ts) {
-    if (!ts) return "just now";
+    if (!ts) return "";
     const diff = Math.max(0, Math.floor((Date.now() - new Date(ts).getTime()) / 1000));
     if (diff < 60) return `${diff}s ago`;
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
