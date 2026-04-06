@@ -15,7 +15,7 @@ let shadowBannedIds = [];
 let realtimeChannel = null;
 
 // =======================
-// ⏱️ UTILS
+// ⏱️ UTILS & TOS
 // =======================
 function getUserId() {
     let id = localStorage.getItem("userId") || crypto.randomUUID();
@@ -23,12 +23,19 @@ function getUserId() {
     return id;
 }
 
-// =======================
-// 📜 TOS SYSTEM
-// =======================
+function getAnonName() {
+    let anonNum = localStorage.getItem("anonNum");
+    if (!anonNum) {
+        anonNum = Math.floor(Math.random() * 10000) + 1;
+        localStorage.setItem("anonNum", anonNum);
+    }
+    return `Anonymous #${anonNum}`;
+}
+
 function checkTOS() {
     const hasAgreed = localStorage.getItem("tosAgreed");
     const overlay = document.getElementById("tosOverlay");
+    if (!overlay) return;
     
     if (hasAgreed === "true") {
         overlay.style.display = "none";
@@ -40,22 +47,6 @@ function checkTOS() {
 function acceptTOS() {
     localStorage.setItem("tosAgreed", "true");
     document.getElementById("tosOverlay").style.display = "none";
-}
-
-// Add checkTOS() to your initial execution at the bottom of the script
-checkTOS();
-loadPosts();
-initRealtime();
-
-function getAnonName() {
-    // 1. Check if we already have a random number for this user
-    let anonNum = localStorage.getItem("anonNum");
-    if (!anonNum) {
-        // 2. If not, generate a random one between 1 and 10,000
-        anonNum = Math.floor(Math.random() * 10000) + 1;
-        localStorage.setItem("anonNum", anonNum);
-    }
-    return `Anonymous #${anonNum}`;
 }
 
 function timeAgo(ts) {
@@ -86,10 +77,7 @@ function render() {
     });
 
     if (threadId) {
-        // --- THREAD VIEW ---
         formContainer.style.display = "none";
-        
-        // Setup skeleton if it doesn't exist
         if (!document.getElementById("thread-wrapper")) {
             container.innerHTML = `
                 <a href="index.html" class="backBtn">[ Back to Board ]</a>
@@ -98,29 +86,21 @@ function render() {
                 <div id="replies-wrapper" class="reply-section"></div>
             `;
         }
-
         const op = visiblePosts.find(p => p.id == threadId);
         const replies = visiblePosts.filter(p => p.parent_id == threadId);
-
         if (!op) {
             container.innerHTML = "Thread not found. <a href='index.html'>Go Back</a>";
             return;
         }
-
         renderSinglePost(op, document.getElementById("thread-wrapper"), true);
-
         const replyWrap = document.getElementById("replies-wrapper");
-        // Sort replies chronologically so newest appears at the bottom
         replies.sort((a,b) => new Date(a.created_at) - new Date(b.created_at)).forEach(r => {
             renderSinglePost(r, replyWrap, false);
         });
-
     } else {
-        // --- CATALOG/BOARD VIEW ---
         formContainer.style.display = "block";
         container.innerHTML = ""; 
         const topics = visiblePosts.filter(p => !p.parent_id);
-        
         topics.forEach(t => {
             const replyCount = visiblePosts.filter(p => p.parent_id === t.id).length;
             const div = document.createElement("div");
@@ -139,15 +119,12 @@ function render() {
 }
 
 function renderSinglePost(post, container, isOP) {
-    // Prevent duplicate rendering and UI flicker
     if (document.getElementById(`post-${post.id}`)) return;
-
     const div = document.createElement("div");
     div.id = `post-${post.id}`;
     div.className = isOP ? "post op" : "post reply";
     const isMod = MODS.includes(post.user_id);
     const myId = getUserId();
-    
     const formatted = (post.text || "")
         .split("\n")
         .map(line => line.startsWith(">") ? `<blockquote>${line}</blockquote>` : line)
@@ -175,9 +152,7 @@ function renderSinglePost(post, container, isOP) {
 // 📡 REALTIME SYSTEM
 // =======================
 function initRealtime() {
-    // Clean up old channel if switching boards
     if (realtimeChannel) db.removeChannel(realtimeChannel);
-
     realtimeChannel = db.channel('public:posts')
         .on('postgres_changes', { 
             event: 'INSERT', 
@@ -185,7 +160,6 @@ function initRealtime() {
             table: 'posts',
             filter: `board=eq.${currentBoard}` 
         }, (payload) => {
-            // New post arrives! Add to cache and update UI
             cachedPosts.push(payload.new);
             render();
         })
@@ -196,23 +170,28 @@ function initRealtime() {
 // ➕ ACTIONS
 // =======================
 async function addPost() {
+    if (localStorage.getItem("tosAgreed") !== "true") {
+        alert("Please accept the TOS first!");
+        return;
+    }
     const input = document.getElementById("postInput");
     if (!input.value.trim()) return;
-
     await db.from("posts").insert({
         text: input.value,
-        author: getAnonName(), // Sends "Anonymous #XXXX"
+        author: getAnonName(),
         user_id: getUserId(),
         board: currentBoard
     });
-
     input.value = "";
 }
 
 async function addReply(parentId) {
+    if (localStorage.getItem("tosAgreed") !== "true") {
+        alert("Please accept the TOS first!");
+        return;
+    }
     const input = document.getElementById("replyInput-" + parentId);
     if (!input.value.trim()) return;
-
     await db.from("posts").insert({
         text: input.value,
         author: getAnonName(),
@@ -220,7 +199,6 @@ async function addReply(parentId) {
         parent_id: parentId,
         board: currentBoard
     });
-
     input.value = "";
     toggleReplyBox(parentId);
 }
@@ -237,12 +215,10 @@ async function banUser(targetId) {
 async function loadPosts() {
     const { data: banData } = await db.from("shadow_bans").select("user_id");
     shadowBannedIds = (banData || []).map(b => b.user_id);
-
     const { data, error } = await db.from("posts")
         .select("*")
         .eq("board", currentBoard)
         .order("created_at", { ascending: false });
-
     if (!error) {
         cachedPosts = data;
         render();
@@ -253,10 +229,8 @@ function switchBoard(board) {
     currentBoard = board;
     const titleEl = document.getElementById("boardTitle");
     if (titleEl) titleEl.innerText = board.toUpperCase();
-    
     cachedPosts = [];
     document.getElementById("posts").innerHTML = "";
-    
     window.history.pushState({}, "", window.location.pathname);
     loadPosts();
     initRealtime(); 
@@ -267,13 +241,17 @@ function toggleReplyBox(id) {
     el.style.display = el.style.display === "none" ? "block" : "none";
 }
 
-// Global scope for HTML button access
+// Global scope bindings
 window.addPost = addPost;
 window.addReply = addReply;
 window.switchBoard = switchBoard;
 window.toggleReplyBox = toggleReplyBox;
 window.banUser = banUser;
+window.acceptTOS = acceptTOS;
 
-// Initial execution
+// =======================
+// 🚀 INITIAL EXECUTION (STAY AT BOTTOM)
+// =======================
+checkTOS();
 loadPosts();
 initRealtime();
