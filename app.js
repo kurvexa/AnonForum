@@ -49,9 +49,19 @@ function acceptTOS() {
     document.getElementById("tosOverlay").style.display = "none";
 }
 
+/**
+ * FIXED: Added validation and a "just now" fallback 
+ * to prevent empty strings if DB latency occurs.
+ */
 function timeAgo(ts) {
-    if (!ts) return "";
-    const diff = Math.max(0, Math.floor((Date.now() - new Date(ts).getTime()) / 1000));
+    if (!ts) return "just now";
+    
+    const date = new Date(ts);
+    if (isNaN(date.getTime())) return "just now";
+
+    const diff = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+    
+    if (diff < 30) return "just now";
     if (diff < 60) return `${diff}s ago`;
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
@@ -86,14 +96,19 @@ function render() {
                 <div id="replies-wrapper" class="reply-section"></div>
             `;
         }
-        const op = visiblePosts.find(p => p.id == threadId);
-        const replies = visiblePosts.filter(p => p.parent_id == threadId);
+        const op = visiblePosts.find(p => String(p.id) === String(threadId));
+        const replies = visiblePosts.filter(p => String(p.parent_id) === String(threadId));
+        
         if (!op) {
             container.innerHTML = "Thread not found. <a href='index.html'>Go Back</a>";
             return;
         }
+        
         renderSinglePost(op, document.getElementById("thread-wrapper"), true);
         const replyWrap = document.getElementById("replies-wrapper");
+        
+        // Clear replies and re-render to ensure order
+        replyWrap.innerHTML = "";
         replies.sort((a,b) => new Date(a.created_at) - new Date(b.created_at)).forEach(r => {
             renderSinglePost(r, replyWrap, false);
         });
@@ -101,13 +116,14 @@ function render() {
         formContainer.style.display = "block";
         container.innerHTML = ""; 
         const topics = visiblePosts.filter(p => !p.parent_id);
+        
         topics.forEach(t => {
-            const replyCount = visiblePosts.filter(p => p.parent_id === t.id).length;
+            const replyCount = visiblePosts.filter(p => String(p.parent_id) === String(t.id)).length;
             const div = document.createElement("div");
             div.className = "catalog-item post";
             div.onclick = () => { window.location.search = `?thread=${t.id}`; };
             div.innerHTML = `
-                <span class="subject">${t.text.substring(0, 75)}</span>
+                <span class="subject">${(t.text || "").substring(0, 75)}</span>
                 <div class="meta">
                     <b>${t.author}</b> • ${timeAgo(t.created_at)} • 
                     <span style="color:#706b5e;">Replies: ${replyCount}</span>
@@ -127,7 +143,7 @@ function renderSinglePost(post, container, isOP) {
     const myId = getUserId();
     const formatted = (post.text || "")
         .split("\n")
-        .map(line => line.startsWith(">") ? `<blockquote>${line}</blockquote>` : line)
+        .map(line => line.startsWith(">") ? `<span class="quote">${line}</span>` : line)
         .join("<br>");
 
     div.innerHTML = `
@@ -160,8 +176,11 @@ function initRealtime() {
             table: 'posts',
             filter: `board=eq.${currentBoard}` 
         }, (payload) => {
-            cachedPosts.push(payload.new);
-            render();
+            // Check if post already exists in cache to prevent duplicates
+            if (!cachedPosts.find(p => p.id === payload.new.id)) {
+                cachedPosts.push(payload.new);
+                render();
+            }
         })
         .subscribe();
 }
@@ -176,11 +195,14 @@ async function addPost() {
     }
     const input = document.getElementById("postInput");
     if (!input.value.trim()) return;
+
+    // FIXED: Manually sending created_at ensures timeAgo() has a value immediately
     await db.from("posts").insert({
         text: input.value,
         author: getAnonName(),
         user_id: getUserId(),
-        board: currentBoard
+        board: currentBoard,
+        created_at: new Date().toISOString()
     });
     input.value = "";
 }
@@ -192,12 +214,15 @@ async function addReply(parentId) {
     }
     const input = document.getElementById("replyInput-" + parentId);
     if (!input.value.trim()) return;
+
+    // FIXED: Manually sending created_at
     await db.from("posts").insert({
         text: input.value,
         author: getAnonName(),
         user_id: getUserId(),
         parent_id: parentId,
-        board: currentBoard
+        board: currentBoard,
+        created_at: new Date().toISOString()
     });
     input.value = "";
     toggleReplyBox(parentId);
@@ -238,7 +263,7 @@ function switchBoard(board) {
 
 function toggleReplyBox(id) {
     const el = document.getElementById("replyBox-" + id);
-    el.style.display = el.style.display === "none" ? "block" : "none";
+    if (el) el.style.display = el.style.display === "none" ? "block" : "none";
 }
 
 // Global scope bindings
@@ -250,7 +275,7 @@ window.banUser = banUser;
 window.acceptTOS = acceptTOS;
 
 // =======================
-// 🚀 INITIAL EXECUTION (STAY AT BOTTOM)
+// 🚀 INITIAL EXECUTION
 // =======================
 checkTOS();
 loadPosts();
