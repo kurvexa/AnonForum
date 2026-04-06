@@ -24,7 +24,14 @@ function getUserId() {
 }
 
 function getAnonName() {
-    return localStorage.getItem("anonName") || "Anonymous";
+    // 1. Check if we already have a random number for this user
+    let anonNum = localStorage.getItem("anonNum");
+    if (!anonNum) {
+        // 2. If not, generate a random one between 1 and 10,000
+        anonNum = Math.floor(Math.random() * 10000) + 1;
+        localStorage.setItem("anonNum", anonNum);
+    }
+    return `Anonymous #${anonNum}`;
 }
 
 function timeAgo(ts) {
@@ -58,7 +65,7 @@ function render() {
         // --- THREAD VIEW ---
         formContainer.style.display = "none";
         
-        // Ensure the skeleton exists if it's the first render
+        // Setup skeleton if it doesn't exist
         if (!document.getElementById("thread-wrapper")) {
             container.innerHTML = `
                 <a href="index.html" class="backBtn">[ Back to Board ]</a>
@@ -76,11 +83,10 @@ function render() {
             return;
         }
 
-        // Render OP if not already there
         renderSinglePost(op, document.getElementById("thread-wrapper"), true);
 
-        // Render Replies (we reverse to show newest at bottom for thread view)
         const replyWrap = document.getElementById("replies-wrapper");
+        // Sort replies chronologically so newest appears at the bottom
         replies.sort((a,b) => new Date(a.created_at) - new Date(b.created_at)).forEach(r => {
             renderSinglePost(r, replyWrap, false);
         });
@@ -88,10 +94,8 @@ function render() {
     } else {
         // --- CATALOG/BOARD VIEW ---
         formContainer.style.display = "block";
-        const topics = visiblePosts.filter(p => !p.parent_id);
-        
-        // In Catalog view, it's safer to clear it since it's just links
         container.innerHTML = ""; 
+        const topics = visiblePosts.filter(p => !p.parent_id);
         
         topics.forEach(t => {
             const replyCount = visiblePosts.filter(p => p.parent_id === t.id).length;
@@ -111,11 +115,11 @@ function render() {
 }
 
 function renderSinglePost(post, container, isOP) {
-    // Check if post already exists on the page to avoid duplicates/flicker
+    // Prevent duplicate rendering and UI flicker
     if (document.getElementById(`post-${post.id}`)) return;
 
     const div = document.createElement("div");
-    div.id = `post-${post.id}`; // Give it a unique ID
+    div.id = `post-${post.id}`;
     div.className = isOP ? "post op" : "post reply";
     const isMod = MODS.includes(post.user_id);
     const myId = getUserId();
@@ -147,6 +151,7 @@ function renderSinglePost(post, container, isOP) {
 // 📡 REALTIME SYSTEM
 // =======================
 function initRealtime() {
+    // Clean up old channel if switching boards
     if (realtimeChannel) db.removeChannel(realtimeChannel);
 
     realtimeChannel = db.channel('public:posts')
@@ -156,7 +161,7 @@ function initRealtime() {
             table: 'posts',
             filter: `board=eq.${currentBoard}` 
         }, (payload) => {
-            // Add the new post to cache and re-render
+            // New post arrives! Add to cache and update UI
             cachedPosts.push(payload.new);
             render();
         })
@@ -172,13 +177,12 @@ async function addPost() {
 
     await db.from("posts").insert({
         text: input.value,
-        author: getAnonName(),
+        author: getAnonName(), // Sends "Anonymous #XXXX"
         user_id: getUserId(),
         board: currentBoard
     });
 
     input.value = "";
-    // No need to call loadPosts() manually, Realtime will catch it!
 }
 
 async function addReply(parentId) {
@@ -226,13 +230,12 @@ function switchBoard(board) {
     const titleEl = document.getElementById("boardTitle");
     if (titleEl) titleEl.innerText = board.toUpperCase();
     
-    // Reset state for new board
     cachedPosts = [];
     document.getElementById("posts").innerHTML = "";
     
     window.history.pushState({}, "", window.location.pathname);
     loadPosts();
-    initRealtime(); // Re-subscribe to the new board filter
+    initRealtime(); 
 }
 
 function toggleReplyBox(id) {
@@ -240,13 +243,13 @@ function toggleReplyBox(id) {
     el.style.display = el.style.display === "none" ? "block" : "none";
 }
 
-// Global scope
+// Global scope for HTML button access
 window.addPost = addPost;
 window.addReply = addReply;
 window.switchBoard = switchBoard;
 window.toggleReplyBox = toggleReplyBox;
 window.banUser = banUser;
 
-// Initial start
+// Initial execution
 loadPosts();
 initRealtime();
