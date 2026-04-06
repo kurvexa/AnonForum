@@ -23,6 +23,30 @@ function getUserId() {
     return id;
 }
 
+// =======================
+// 📜 TOS SYSTEM
+// =======================
+function checkTOS() {
+    const hasAgreed = localStorage.getItem("tosAgreed");
+    const overlay = document.getElementById("tosOverlay");
+    
+    if (hasAgreed === "true") {
+        overlay.style.display = "none";
+    } else {
+        overlay.style.setProperty("display", "flex", "important");
+    }
+}
+
+function acceptTOS() {
+    localStorage.setItem("tosAgreed", "true");
+    document.getElementById("tosOverlay").style.display = "none";
+}
+
+// Add checkTOS() to your initial execution at the bottom of the script
+checkTOS();
+loadPosts();
+initRealtime();
+
 function getAnonName() {
     // 1. Check if we already have a random number for this user
     let anonNum = localStorage.getItem("anonNum");
