@@ -49,18 +49,11 @@ function acceptTOS() {
     document.getElementById("tosOverlay").style.display = "none";
 }
 
-/**
- * FIXED: Added validation and a "just now" fallback 
- * to prevent empty strings if DB latency occurs.
- */
 function timeAgo(ts) {
     if (!ts) return "just now";
-    
     const date = new Date(ts);
     if (isNaN(date.getTime())) return "just now";
-
     const diff = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
-    
     if (diff < 30) return "just now";
     if (diff < 60) return `${diff}s ago`;
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
@@ -90,7 +83,7 @@ function render() {
         formContainer.style.display = "none";
         if (!document.getElementById("thread-wrapper")) {
             container.innerHTML = `
-                <a href="index.html" class="backBtn">[ Back to Board ]</a>
+                <a href="index.html" class="backBtn" onclick="event.preventDefault(); switchBoard(currentBoard)">[ Back to Board ]</a>
                 <hr>
                 <div id="thread-wrapper"></div>
                 <div id="replies-wrapper" class="reply-section"></div>
@@ -100,14 +93,12 @@ function render() {
         const replies = visiblePosts.filter(p => String(p.parent_id) === String(threadId));
         
         if (!op) {
-            container.innerHTML = "Thread not found. <a href='index.html'>Go Back</a>";
+            container.innerHTML = `Thread not found on /${currentBoard}/. <a href="index.html">Go Back</a>`;
             return;
         }
         
         renderSinglePost(op, document.getElementById("thread-wrapper"), true);
         const replyWrap = document.getElementById("replies-wrapper");
-        
-        // Clear replies and re-render to ensure order
         replyWrap.innerHTML = "";
         replies.sort((a,b) => new Date(a.created_at) - new Date(b.created_at)).forEach(r => {
             renderSinglePost(r, replyWrap, false);
@@ -121,7 +112,8 @@ function render() {
             const replyCount = visiblePosts.filter(p => String(p.parent_id) === String(t.id)).length;
             const div = document.createElement("div");
             div.className = "catalog-item post";
-            div.onclick = () => { window.location.search = `?thread=${t.id}`; };
+            // FIXED: Pass board in URL so reload works
+            div.onclick = () => { window.location.search = `?thread=${t.id}&board=${currentBoard}`; };
             div.innerHTML = `
                 <span class="subject">${(t.text || "").substring(0, 75)}</span>
                 <div class="meta">
@@ -176,7 +168,6 @@ function initRealtime() {
             table: 'posts',
             filter: `board=eq.${currentBoard}` 
         }, (payload) => {
-            // Check if post already exists in cache to prevent duplicates
             if (!cachedPosts.find(p => p.id === payload.new.id)) {
                 cachedPosts.push(payload.new);
                 render();
@@ -196,7 +187,6 @@ async function addPost() {
     const input = document.getElementById("postInput");
     if (!input.value.trim()) return;
 
-    // FIXED: Manually sending created_at ensures timeAgo() has a value immediately
     await db.from("posts").insert({
         text: input.value,
         author: getAnonName(),
@@ -215,7 +205,6 @@ async function addReply(parentId) {
     const input = document.getElementById("replyInput-" + parentId);
     if (!input.value.trim()) return;
 
-    // FIXED: Manually sending created_at
     await db.from("posts").insert({
         text: input.value,
         author: getAnonName(),
@@ -238,12 +227,22 @@ async function banUser(targetId) {
 // 🛠️ HELPERS
 // =======================
 async function loadPosts() {
+    // FIXED: Determine board from URL before fetching
+    const params = new URLSearchParams(window.location.search);
+    const urlBoard = params.get("board");
+    if (urlBoard) currentBoard = urlBoard;
+
+    const titleEl = document.getElementById("boardTitle");
+    if (titleEl) titleEl.innerText = currentBoard.toUpperCase();
+
     const { data: banData } = await db.from("shadow_bans").select("user_id");
     shadowBannedIds = (banData || []).map(b => b.user_id);
+    
     const { data, error } = await db.from("posts")
         .select("*")
         .eq("board", currentBoard)
         .order("created_at", { ascending: false });
+        
     if (!error) {
         cachedPosts = data;
         render();
@@ -255,8 +254,12 @@ function switchBoard(board) {
     const titleEl = document.getElementById("boardTitle");
     if (titleEl) titleEl.innerText = board.toUpperCase();
     cachedPosts = [];
-    document.getElementById("posts").innerHTML = "";
+    const postContainer = document.getElementById("posts");
+    if (postContainer) postContainer.innerHTML = "";
+    
+    // Clear URL parameters when switching boards
     window.history.pushState({}, "", window.location.pathname);
+    
     loadPosts();
     initRealtime(); 
 }
