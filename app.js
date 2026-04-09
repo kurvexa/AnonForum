@@ -13,6 +13,10 @@ let cachedPosts = [];
 let officialMods = []; 
 let shadowBannedIds = [];
 let realtimeChannel = null;
+
+// =======================
+// 🔐 AUTH
+// =======================
 async function initAuth() {
     const { data } = await db.auth.getSession();
     if (!data.session) {
@@ -25,33 +29,52 @@ async function getUserId() {
     return user?.id;
 }
 
+// =======================
+// 👤 ANON NAME
+// =======================
 function getAnonName() {
     let anonNum = localStorage.getItem("anonNum") || (Math.floor(Math.random() * 10000) + 1);
     localStorage.setItem("anonNum", anonNum);
     return `Anonymous #${anonNum}`;
 }
 
+// =======================
+// ⏱️ TIME
+// =======================
 function timeAgo(ts) {
     const date = new Date(ts);
     const diff = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
     if (diff < 60) return `just now`;
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 84400) return `${Math.floor(diff / 3600)}h ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
     return `${Math.floor(diff / 86400)}d ago`;
+}
+
+// =======================
+// 🛡️ XSS SAFE TEXT
+// =======================
+function escapeHTML(str) {
+    return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
 }
 
 function formatText(rawText) {
     if (!rawText) return "";
-    return rawText
+
+    const safe = escapeHTML(rawText);
+
+    return safe
         .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
         .replace(/\*(.*?)\*/g, '<i>$1</i>')
         .split("\n")
-        .map(line => line.startsWith(">") ? `<span class="quote">${line}</span>` : line)
+        .map(line => line.startsWith("&gt;") ? `<span class="quote">${line}</span>` : line)
         .join("<br>");
 }
 
 // =======================
-// 🖼️ RENDERING ENGINE
+// 🖼️ RENDERING
 // =======================
 async function render() {
     const container = document.getElementById("posts");
@@ -59,8 +82,8 @@ async function render() {
     if (!container) return;
 
     const myId = await getUserId();
-    const isCurrentUserMod = officialMods.includes(myId);
-    
+    const isMod = officialMods.includes(myId);
+
     const params = new URLSearchParams(window.location.search);
     const threadId = params.get("thread");
 
@@ -71,61 +94,72 @@ async function render() {
 
     if (threadId) {
         formContainer.style.display = "none";
-        container.innerHTML = `<a href="index.html" class="backBtn" onclick="event.preventDefault(); switchBoard(currentBoard)">[ Back ]</a><hr><div id="thread-wrapper"></div><div id="replies-wrapper" class="reply-section"></div>`;
-        
+
+        container.innerHTML = `
+            <a href="index.html" onclick="event.preventDefault(); switchBoard(currentBoard)">[ Back ]</a>
+            <hr>
+            <div id="thread-wrapper"></div>
+            <div id="replies-wrapper"></div>
+        `;
+
         const op = visiblePosts.find(p => String(p.id) === String(threadId));
+
         if (op) {
-            renderSinglePost(op, document.getElementById("thread-wrapper"), true, isCurrentUserMod);
+            renderSinglePost(op, document.getElementById("thread-wrapper"), true, isMod);
+
             const replyWrap = document.getElementById("replies-wrapper");
-            visiblePosts.filter(p => String(p.parent_id) === String(threadId))
+
+            visiblePosts
+                .filter(p => String(p.parent_id) === String(threadId))
                 .sort((a,b) => new Date(a.created_at) - new Date(b.created_at))
-                .forEach(r => renderSinglePost(r, replyWrap, false, isCurrentUserMod));
+                .forEach(r => renderSinglePost(r, replyWrap, false, isMod));
         }
+
     } else {
         formContainer.style.display = "block";
         container.innerHTML = "";
-        visiblePosts.filter(p => !p.parent_id).sort((a, b) => {
-            if (a.is_pinned === b.is_pinned) return new Date(b.created_at) - new Date(a.created_at);
-            return a.is_pinned ? -1 : 1;
-        }).forEach(t => {
-            const div = document.createElement("div");
-            div.className = `catalog-item post ${t.is_pinned ? 'pinned-thread' : ''}`;
-            div.onclick = () => { window.location.search = `?thread=${t.id}&board=${currentBoard}`; };
-            div.innerHTML = `<span class="subject">${t.is_pinned ? '📌 ' : ''}${t.text.substring(0, 75)}</span>
-                             <div class="meta"><b>${t.author}</b> • ${timeAgo(t.created_at)}</div>`;
-            container.appendChild(div);
-        });
+
+        visiblePosts
+            .filter(p => !p.parent_id)
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+            .forEach(t => {
+                const div = document.createElement("div");
+                div.className = "catalog-item post";
+                div.onclick = () => {
+                    window.location.search = `?thread=${t.id}&board=${currentBoard}`;
+                };
+
+                div.innerHTML = `
+                    <span class="subject">${t.text.substring(0, 75)}</span>
+                    <div class="meta"><b>${t.author}</b> • ${timeAgo(t.created_at)}</div>
+                `;
+
+                container.appendChild(div);
+            });
     }
 }
 
-function renderSinglePost(post, container, isOP, isCurrentUserMod) {
+// =======================
+// 🧱 POST RENDER
+// =======================
+function renderSinglePost(post, container, isOP, isMod) {
     const div = document.createElement("div");
     div.className = isOP ? "post op" : "post reply";
-    const isPostAuthorMod = officialMods.includes(post.user_id);
 
     div.innerHTML = `
         <div class="post-header">
-            <span class="name">${post.author}</span> 
-            ${isPostAuthorMod ? '<span class="modTag"># MOD</span>' : ''}
+            <span class="name">${post.author}</span>
             <span class="ts">${timeAgo(post.created_at)}</span>
             <span class="num">No.${post.id}</span>
-            ${isOP ? `<button class="replyBtn" onclick="toggleReplyBox(${post.id})">Reply</button>` : ''}
-            ${isCurrentUserMod ? `
-                <button onclick="event.stopPropagation(); togglePin(${post.id}, ${post.is_pinned})" class="modAction">${post.is_pinned ? '[Unpin]' : '[Pin]'}</button>
-                <button onclick="event.stopPropagation(); banUser('${post.user_id}')" class="modAction">[X]</button>
-            ` : ''}
         </div>
         <div class="post-body">${formatText(post.text)}</div>
-        <div id="replyBox-${post.id}" class="inline-reply" style="display:none; margin-top:10px;">
-            <textarea id="replyInput-${post.id}"></textarea><br>
-            <button onclick="addReply(${post.id})">Submit</button>
-        </div>
     `;
+
     container.appendChild(div);
 }
 
 // =======================
-// 📡 DATA & REALTIME
+// 📡 DATA
 // =======================
 async function loadPosts() {
     const { data: mods } = await db.from("moderators").select("user_id");
@@ -136,14 +170,8 @@ async function loadPosts() {
 
     const { data: posts } = await db.from("posts").select("*").eq("board", currentBoard);
     cachedPosts = posts || [];
-    render();
-}
 
-function initRealtime() {
-    if (realtimeChannel) db.removeChannel(realtimeChannel);
-    realtimeChannel = db.channel('public:posts')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, loadPosts)
-        .subscribe();
+    render();
 }
 
 // =======================
@@ -156,67 +184,29 @@ async function addPost() {
     await db.from("posts").insert({
         text: input.value,
         author: getAnonName(),
-        user_id: await getUserId(),
         board: currentBoard
     });
+
     input.value = "";
 }
 
-async function addReply(parentId) {
-    const input = document.getElementById("replyInput-" + parentId);
-    if (!input.value.trim()) return;
-
-    await db.from("posts").insert({
-        text: input.value,
-        author: getAnonName(),
-        user_id: await getUserId(),
-        parent_id: parentId,
-        board: currentBoard
-    });
-    input.value = "";
-    toggleReplyBox(parentId);
-}
-
-async function togglePin(postId, currentState) {
-    const { error } = await db.from("posts").update({ is_pinned: !currentState }).eq("id", postId);
-    if (error) alert("Unauthorized: You are not a moderator.");
-}
-
-async function banUser(targetId) {
-    if (!confirm("Shadow ban this ID?")) return;
-    const { error } = await db.from("shadow_bans").insert({ user_id: targetId });
-    if (error) alert("Unauthorized.");
-    loadPosts();
-}
-
+// =======================
+// 🔄 BOARD
+// =======================
 function switchBoard(board) {
     currentBoard = board;
     window.history.pushState({}, "", `?board=${board}`);
     loadPosts();
 }
 
-function toggleReplyBox(id) {
-    const el = document.getElementById("replyBox-" + id);
-    if (el) el.style.display = el.style.display === "none" ? "block" : "none";
-}
-
-function acceptTOS() {
-    localStorage.setItem("tosAgreed", "true");
-    document.getElementById("tosOverlay").style.display = "none";
-}
-
-window.addPost = addPost;
-window.addReply = addReply;
-window.switchBoard = switchBoard;
-window.toggleReplyBox = toggleReplyBox;
-window.banUser = banUser;
-window.acceptTOS = acceptTOS;
-window.togglePin = togglePin;
+// =======================
+// 🚀 INIT
+// =======================
 (async () => {
     if (localStorage.getItem("tosAgreed") !== "true") {
         document.getElementById("tosOverlay").style.display = "flex";
     }
+
     await initAuth();
     await loadPosts();
-    initRealtime();
 })();
