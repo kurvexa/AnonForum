@@ -15,7 +15,7 @@ let shadowBannedIds = [];
 let realtimeChannel = null;
 
 // =======================
-// ⏱️ UTILS & TOS
+// ⏱️ UTILS & FORMATTING
 // =======================
 function getUserId() {
     let id = localStorage.getItem("userId") || crypto.randomUUID();
@@ -32,23 +32,6 @@ function getAnonName() {
     return `Anonymous #${anonNum}`;
 }
 
-function checkTOS() {
-    const hasAgreed = localStorage.getItem("tosAgreed");
-    const overlay = document.getElementById("tosOverlay");
-    if (!overlay) return;
-    
-    if (hasAgreed === "true") {
-        overlay.style.display = "none";
-    } else {
-        overlay.style.setProperty("display", "flex", "important");
-    }
-}
-
-function acceptTOS() {
-    localStorage.setItem("tosAgreed", "true");
-    document.getElementById("tosOverlay").style.display = "none";
-}
-
 function timeAgo(ts) {
     if (!ts) return "just now";
     const date = new Date(ts);
@@ -59,6 +42,17 @@ function timeAgo(ts) {
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
     return `${Math.floor(diff / 86400)}d ago`;
+}
+
+// FORMATTING ENGINE: Bold, Italics, Greentext
+function formatText(rawText) {
+    if (!rawText) return "";
+    return rawText
+        .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>') // Bold: **text**
+        .replace(/\*(.*?)\*/g, '<i>$1</i>')     // Italics: *text*
+        .split("\n")
+        .map(line => line.startsWith(">") ? `<span class="quote">${line}</span>` : line)
+        .join("<br>");
 }
 
 // =======================
@@ -93,7 +87,7 @@ function render() {
         const replies = visiblePosts.filter(p => String(p.parent_id) === String(threadId));
         
         if (!op) {
-            container.innerHTML = `Thread not found on /${currentBoard}/. <a href="index.html">Go Back</a>`;
+            container.innerHTML = `Thread not found. <a href="index.html">Go Back</a>`;
             return;
         }
         
@@ -106,16 +100,23 @@ function render() {
     } else {
         formContainer.style.display = "block";
         container.innerHTML = ""; 
-        const topics = visiblePosts.filter(p => !p.parent_id);
+        
+        // SORTING: Pinned posts first, then newest first
+        const topics = visiblePosts.filter(p => !p.parent_id).sort((a, b) => {
+            if (a.is_pinned === b.is_pinned) return new Date(b.created_at) - new Date(a.created_at);
+            return a.is_pinned ? -1 : 1;
+        });
         
         topics.forEach(t => {
             const replyCount = visiblePosts.filter(p => String(p.parent_id) === String(t.id)).length;
             const div = document.createElement("div");
-            div.className = "catalog-item post";
-            // FIXED: Pass board in URL so reload works
+            div.className = `catalog-item post ${t.is_pinned ? 'pinned-thread' : ''}`;
             div.onclick = () => { window.location.search = `?thread=${t.id}&board=${currentBoard}`; };
             div.innerHTML = `
-                <span class="subject">${(t.text || "").substring(0, 75)}</span>
+                <span class="subject">
+                    ${t.is_pinned ? '<span class="pin-tag">📌 PINNED</span> ' : ''}
+                    ${t.text.substring(0, 75)}
+                </span>
                 <div class="meta">
                     <b>${t.author}</b> • ${timeAgo(t.created_at)} • 
                     <span style="color:#706b5e;">Replies: ${replyCount}</span>
@@ -131,12 +132,11 @@ function renderSinglePost(post, container, isOP) {
     const div = document.createElement("div");
     div.id = `post-${post.id}`;
     div.className = isOP ? "post op" : "post reply";
+    if (post.is_pinned) div.classList.add("pinned-post");
+
     const isMod = MODS.includes(post.user_id);
     const myId = getUserId();
-    const formatted = (post.text || "")
-        .split("\n")
-        .map(line => line.startsWith(">") ? `<span class="quote">${line}</span>` : line)
-        .join("<br>");
+    const formattedBody = formatText(post.text);
 
     div.innerHTML = `
         <div class="post-header">
@@ -145,9 +145,12 @@ function renderSinglePost(post, container, isOP) {
             <span class="ts">${timeAgo(post.created_at)}</span>
             <span class="num">No.${post.id}</span>
             ${isOP ? `<button class="replyBtn" onclick="toggleReplyBox(${post.id})">Reply</button>` : ''}
-            ${MODS.includes(myId) ? `<button onclick="event.stopPropagation(); banUser('${post.user_id}')" style="font-size:8px; opacity:0.3;">[X]</button>` : ''}
+            ${MODS.includes(myId) ? `
+                <button onclick="event.stopPropagation(); togglePin(${post.id}, ${post.is_pinned})" class="modAction">${post.is_pinned ? '[Unpin]' : '[Pin]'}</button>
+                <button onclick="event.stopPropagation(); banUser('${post.user_id}')" class="modAction">[X]</button>
+            ` : ''}
         </div>
-        <div class="post-body">${formatted}</div>
+        <div class="post-body">${formattedBody}</div>
         <div id="replyBox-${post.id}" class="inline-reply" style="display:none; margin-top:10px;">
             <textarea id="replyInput-${post.id}"></textarea><br>
             <button onclick="addReply(${post.id})">Submit</button>
@@ -163,15 +166,11 @@ function initRealtime() {
     if (realtimeChannel) db.removeChannel(realtimeChannel);
     realtimeChannel = db.channel('public:posts')
         .on('postgres_changes', { 
-            event: 'INSERT', 
+            event: '*', // Listen for updates too (for pinning)
             schema: 'public', 
-            table: 'posts',
-            filter: `board=eq.${currentBoard}` 
-        }, (payload) => {
-            if (!cachedPosts.find(p => p.id === payload.new.id)) {
-                cachedPosts.push(payload.new);
-                render();
-            }
+            table: 'posts'
+        }, () => {
+            loadPosts(); // Refresh on any change
         })
         .subscribe();
 }
@@ -180,10 +179,7 @@ function initRealtime() {
 // ➕ ACTIONS
 // =======================
 async function addPost() {
-    if (localStorage.getItem("tosAgreed") !== "true") {
-        alert("Please accept the TOS first!");
-        return;
-    }
+    if (localStorage.getItem("tosAgreed") !== "true") return;
     const input = document.getElementById("postInput");
     if (!input.value.trim()) return;
 
@@ -198,10 +194,7 @@ async function addPost() {
 }
 
 async function addReply(parentId) {
-    if (localStorage.getItem("tosAgreed") !== "true") {
-        alert("Please accept the TOS first!");
-        return;
-    }
+    if (localStorage.getItem("tosAgreed") !== "true") return;
     const input = document.getElementById("replyInput-" + parentId);
     if (!input.value.trim()) return;
 
@@ -217,6 +210,10 @@ async function addReply(parentId) {
     toggleReplyBox(parentId);
 }
 
+async function togglePin(postId, currentState) {
+    await db.from("posts").update({ is_pinned: !currentState }).eq("id", postId);
+}
+
 async function banUser(targetId) {
     if (!confirm("Shadow ban this ID?")) return;
     await db.from("shadow_bans").insert({ user_id: targetId });
@@ -227,7 +224,6 @@ async function banUser(targetId) {
 // 🛠️ HELPERS
 // =======================
 async function loadPosts() {
-    // FIXED: Determine board from URL before fetching
     const params = new URLSearchParams(window.location.search);
     const urlBoard = params.get("board");
     if (urlBoard) currentBoard = urlBoard;
@@ -240,8 +236,7 @@ async function loadPosts() {
     
     const { data, error } = await db.from("posts")
         .select("*")
-        .eq("board", currentBoard)
-        .order("created_at", { ascending: false });
+        .eq("board", currentBoard);
         
     if (!error) {
         cachedPosts = data;
@@ -251,17 +246,8 @@ async function loadPosts() {
 
 function switchBoard(board) {
     currentBoard = board;
-    const titleEl = document.getElementById("boardTitle");
-    if (titleEl) titleEl.innerText = board.toUpperCase();
-    cachedPosts = [];
-    const postContainer = document.getElementById("posts");
-    if (postContainer) postContainer.innerHTML = "";
-    
-    // Clear URL parameters when switching boards
-    window.history.pushState({}, "", window.location.pathname);
-    
+    window.history.pushState({}, "", `?board=${board}`);
     loadPosts();
-    initRealtime(); 
 }
 
 function toggleReplyBox(id) {
@@ -269,17 +255,28 @@ function toggleReplyBox(id) {
     if (el) el.style.display = el.style.display === "none" ? "block" : "none";
 }
 
-// Global scope bindings
+function checkTOS() {
+    if (localStorage.getItem("tosAgreed") === "true") {
+        document.getElementById("tosOverlay").style.display = "none";
+    } else {
+        document.getElementById("tosOverlay").style.display = "flex";
+    }
+}
+
+function acceptTOS() {
+    localStorage.setItem("tosAgreed", "true");
+    document.getElementById("tosOverlay").style.display = "none";
+}
+
+// Bindings
 window.addPost = addPost;
 window.addReply = addReply;
 window.switchBoard = switchBoard;
 window.toggleReplyBox = toggleReplyBox;
 window.banUser = banUser;
 window.acceptTOS = acceptTOS;
+window.togglePin = togglePin;
 
-// =======================
-// 🚀 INITIAL EXECUTION
-// =======================
 checkTOS();
 loadPosts();
 initRealtime();
