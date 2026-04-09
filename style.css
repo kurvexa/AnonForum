@@ -1,100 +1,51 @@
 body {
-    background: #0d1117; /* GitHub Dark Background */
-    color: #569aae;      /* Primary Text Color */
+    background: #0d1117;
+    color: #569aae;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     font-size: 10pt;
-    margin: 0; 
-    padding: 10px;
+    margin: 0; padding: 10px;
 }
 
 #boardBar { text-align: center; margin-bottom: 10px; font-size: 9pt; }
-#boardBar button { 
-    background: none; 
-    border: none; 
-    color: #58a6ff; /* GitHub Link Blue */
-    text-decoration: underline; 
-    cursor: pointer; 
-}
+#boardBar button { background: none; border: none; color: #58a6ff; text-decoration: underline; cursor: pointer; }
 
 #container { max-width: 900px; margin: auto; }
 h1 { text-align: center; color: #569aae; margin: 5px; }
 hr { border: 0; border-top: 1px solid #30363d; margin: 10px 0; }
 
-/* --- NEW SIMPLIFIED POST FORM --- */
 #postFormContainer {
-    text-align: center;
-    margin: 20px auto;
-    background-color: #161b22; /* Slightly lighter than body for contrast */
-    padding: 15px;
-    border: 1px solid #30363d;
-    display: block;
-    max-width: 450px;
+    text-align: center; margin: 20px auto;
+    background-color: #161b22; padding: 15px;
+    border: 1px solid #30363d; max-width: 450px;
 }
 
 textarea {
-    width: 100%;
-    max-width: 400px;
-    height: 100px;
-    margin-bottom: 8px;
-    background-color: #0d1117;
-    color: #c9d1d9;
-    border: 1px solid #30363d;
-    font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
-    padding: 5px;
-    box-sizing: border-box;
+    width: 100%; max-width: 400px; height: 100px;
+    background-color: #0d1117; color: #c9d1d9;
+    border: 1px solid #30363d; padding: 5px;
 }
 
-/* --- POSTS & REPLIES --- */
-.post { 
-    margin: 4px 0; 
-    border: 1px solid #30363d; 
-    padding: 5px 10px; 
-}
-
-.op { 
-    background: transparent; 
-    border: none; 
-    display: block; 
-    border-bottom: 1px solid #30363d; 
-    padding-bottom: 20px; 
-    margin-bottom: 20px;
-}
-
-.reply { 
-    background: #161b22; /* Darker secondary background */
-    display: table; 
-    border-left: none; 
-    border-top: none; 
-    box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
-}
-
+/* --- POSTS --- */
+.post { margin: 4px 0; border: 1px solid #30363d; padding: 10px; }
+.op { border: none; border-bottom: 1px solid #30363d; padding-bottom: 20px; }
+.reply { background: #161b22; display: table; box-shadow: 2px 2px 0 rgba(0,0,0,0.3); }
 .reply-section { margin-left: 30px; }
 
-/* --- CATALOG STYLING --- */
-.catalog-item { 
-    display: block; 
-    cursor: pointer; 
-    background: #161b22; 
-    width: 100%; 
-    box-sizing: border-box;
-    margin-bottom: 5px;
-    border: 1px solid #30363d;
-}
+/* --- PINNING --- */
+.pinned-thread { border: 1px solid #f1e05a !important; background: #1c1f17 !important; }
+.pinned-post { border-left: 5px solid #f1e05a !important; }
+.pin-tag { color: #f1e05a; font-weight: bold; font-size: 0.8em; }
 
-.catalog-item:hover { background: #1c2128; }
-.subject { font-weight: bold; color: #58a6ff; font-size: 11pt; padding: 5px; }
-.meta { font-size: 9pt; color: #8b949e; margin-top: 5px; padding: 0 5px 5px 5px; }
+/* --- FORMATTING --- */
+.post-body b { color: #ffffff; } /* Bold */
+.post-body i { color: #8b949e; } /* Italics */
+.quote { color: #3fb950; } /* Greentext */
 
-/* --- TEXT ELEMENTS --- */
-.post-header { font-size: 9pt; color: #8b949e; }
-.name { font-weight: bold; color: #569aae; }
-.ts { color: #8b949e; }
-.num { color: #58a6ff; }
-.post-body { color: #c9d1d9; padding: 8px 0; line-height: 1.3; }
-blockquote { color: #3fb950; margin: 0; padding: 0; } /* GitHub Green for quotes */
-
+/* --- MOD UI --- */
 .modTag { color: #ff7b72; font-weight: bold; font-size: 8pt; }
-.backBtn { font-weight: bold; text-decoration: none; color: #58a6ff; display: inline-block; margin-bottom: 10px; }
+.modAction { font-size: 8px; opacity: 0.3; background: none; border: none; color: #ff7b72; cursor: pointer; }
+.modAction:hover { opacity: 1; }
 
-/* Helper for the Reply Button inside threads */
-.replyBtn { font-size: 8pt; margin-left: 10px; cursor: pointer; color: #58a6ff; }
+.catalog-item { cursor: pointer; background: #161b22; margin-bottom: 5px; border: 1px solid #30363d; width: 100%; }
+.subject { font-weight: bold; color: #58a6ff; font-size: 11pt; padding: 5px; display: block; }
+.meta { font-size: 9pt; color: #8b949e; padding: 5px; }
