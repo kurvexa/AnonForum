@@ -13,7 +13,6 @@ let cachedPosts = [];
 let officialMods = []; 
 let shadowBannedIds = [];
 let realtimeChannel = null;
-
 async function initAuth() {
     const { data } = await db.auth.getSession();
     if (!data.session) {
@@ -186,4 +185,38 @@ async function togglePin(postId, currentState) {
 async function banUser(targetId) {
     if (!confirm("Shadow ban this ID?")) return;
     const { error } = await db.from("shadow_bans").insert({ user_id: targetId });
-    if (error) alert("
+    if (error) alert("Unauthorized.");
+    loadPosts();
+}
+
+function switchBoard(board) {
+    currentBoard = board;
+    window.history.pushState({}, "", `?board=${board}`);
+    loadPosts();
+}
+
+function toggleReplyBox(id) {
+    const el = document.getElementById("replyBox-" + id);
+    if (el) el.style.display = el.style.display === "none" ? "block" : "none";
+}
+
+function acceptTOS() {
+    localStorage.setItem("tosAgreed", "true");
+    document.getElementById("tosOverlay").style.display = "none";
+}
+
+window.addPost = addPost;
+window.addReply = addReply;
+window.switchBoard = switchBoard;
+window.toggleReplyBox = toggleReplyBox;
+window.banUser = banUser;
+window.acceptTOS = acceptTOS;
+window.togglePin = togglePin;
+(async () => {
+    if (localStorage.getItem("tosAgreed") !== "true") {
+        document.getElementById("tosOverlay").style.display = "flex";
+    }
+    await initAuth();
+    await loadPosts();
+    initRealtime();
+})();
